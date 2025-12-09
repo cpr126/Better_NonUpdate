@@ -75,7 +75,7 @@
                 <div class="bg-indigo-500 p-1.5 rounded-lg">
                     <i data-lucide="bar-chart-3" class="w-5 h-5 text-white"></i>
                 </div>
-                <span class="font-bold text-lg tracking-tight">Non-update analyzer</span>
+                <span class="font-bold text-lg tracking-tight">Better NonUpdate Tool</span>
             </div>
             <div class="text-sm text-slate-400">
                 Status: <span id="system-status" class="text-emerald-400 font-medium">Ready for Upload</span>
@@ -243,6 +243,13 @@
                         </p>
                     </div>
                     <div class="flex flex-col sm:flex-row items-center gap-4">
+                        
+                        <!-- Exclude Main Scan Toggle (NEW) -->
+                         <label class="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
+                            <input type="checkbox" id="toggle-exclude-main" class="w-4 h-4 rounded text-rose-500 focus:ring-rose-500 border-slate-300">
+                            Exclude Main Scan
+                        </label>
+                        
                         <!-- Exclude 992/998 Toggle (RENAMED) -->
                         <label class="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
                             <input type="checkbox" id="toggle-exclude-99x" class="w-4 h-4 rounded text-rose-500 focus:ring-rose-500 border-slate-300">
@@ -391,6 +398,7 @@
             show199: true,
             excludeExceptions: false, // 203, 230, 213
             exclude99XRoutes: false, // NEW: Exclude 992/998 routes
+            excludeMainScan: false, // NEW: Exclude 3-digit Driver IDs
             showAscanSection: true, // NEW: Toggle visibility of A-Scan section
             
             // Time Filters S1
@@ -431,6 +439,7 @@
             toggleExclude: document.getElementById('toggle-exclude-exceptions'),
             toggleExclude99X: document.getElementById('toggle-exclude-99x'), 
             toggleAscanSection: document.getElementById('toggle-ascan-section'), // NEW
+            toggleExcludeMain: document.getElementById('toggle-exclude-main'), // NEW
 
             // New Section: Base Moved
             baseMovedSection: document.getElementById('base-moved-section'),
@@ -500,7 +509,11 @@
                 state.exclude99XRoutes = e.target.checked;
                 runAnalysis();
             });
-            els.toggleAscanSection.addEventListener('change', (e) => { // NEW A-Scan Toggle
+            els.toggleExcludeMain.addEventListener('change', (e) => { // NEW Listener
+                state.excludeMainScan = e.target.checked;
+                runAnalysis();
+            });
+            els.toggleAscanSection.addEventListener('change', (e) => { // A-Scan Toggle
                 state.showAscanSection = e.target.checked;
                 // Only need to run render, not full analysis
                 els.ascanAnalysisSection.classList.toggle('hidden', !state.showAscanSection);
@@ -863,12 +876,19 @@
                         }
                     }
                     
-                    // Exclusion Logic 2: 992/998 Routes (FIXED: Checking Driver ID)
+                    // Exclusion Logic 2: 992/998 Routes (Checking Driver ID)
                     if(exclusionPass && state.exclude99XRoutes) {
-                        const driverIdString = String(row.driverId); // Check Driver ID (Column S)
-                        
-                        // Check if the Driver ID ends in 992 or 998
+                        const driverIdString = String(row.driverId); 
                         if (driverIdString.endsWith('992') || driverIdString.endsWith('998')) {
+                            exclusionPass = false;
+                        }
+                    }
+                    
+                    // Exclusion Logic 3: Main Scan (3-digit Driver IDs)
+                    if(exclusionPass && state.excludeMainScan) {
+                        const driverIdString = String(row.driverId).trim();
+                        // Strictly check if Driver ID is exactly 3 characters long
+                        if (driverIdString.length === 3) {
                             exclusionPass = false;
                         }
                     }
