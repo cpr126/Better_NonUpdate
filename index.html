@@ -35,6 +35,27 @@
             visibility: hidden; opacity: 0; transition: all 0.3s;
         }
         .loading-overlay.visible { visibility: visible; opacity: 1; }
+        
+        /* FIX: Ensure detail header doesn't overlap content below navigation bar */
+        /* By setting top: 0, the browser will snap to this point upon view change */
+        #driver-detail-view .sticky-header {
+            position: sticky;
+            top: 0; 
+            z-index: 30;
+            /* We remove the padding adjustments here and rely on standard layout */
+            margin-top: 0; 
+            padding-top: 0;
+            /* Ensure it spans full width across the fixed main container margin */
+            margin-left: -1rem; 
+            margin-right: -1rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        /* Adjust main layout spacing to account for the overall fixed header height (16h + 4rem) */
+        main {
+            padding-top: 0; /* Removing top padding on main to start content higher */
+        }
     </style>
 </head>
 <body class="text-slate-900">
@@ -215,8 +236,14 @@
                             Showing items from Base List that are now Status > 200 (excluding 255).
                         </p>
                     </div>
-                    <div class="flex items-center gap-4">
-                        <!-- Exclude Toggle -->
+                    <div class="flex flex-col sm:flex-row items-center gap-4">
+                        <!-- Exclude 992/998 Toggle (NEW) -->
+                        <label class="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
+                            <input type="checkbox" id="toggle-exclude-99x" class="w-4 h-4 rounded text-rose-500 focus:ring-rose-500 border-slate-300">
+                            Exclude 992/998 Routes
+                        </label>
+
+                        <!-- Exclude 203/230/213 Toggle -->
                         <label class="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
                             <input type="checkbox" id="toggle-exclude-exceptions" class="w-4 h-4 rounded text-rose-500 focus:ring-rose-500 border-slate-300">
                             Exclude 203 / 230 / 213
@@ -260,7 +287,7 @@
         <!-- ==================== DRIVER DETAIL VIEW ==================== -->
         <div id="driver-detail-view" class="hidden fade-in min-h-screen">
             <!-- Header -->
-            <div class="bg-white border-b border-slate-200 sticky top-0 z-30 mb-6 shadow-sm -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-4">
+            <div class="bg-white border-b border-slate-200 shadow-sm -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-4 sticky-header">
                 <button onclick="switchView('dashboard')" class="flex items-center text-sm text-slate-500 hover:text-slate-800 transition-colors mb-2">
                     <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> Back to Dashboard
                 </button>
@@ -283,7 +310,7 @@
             </div>
 
             <!-- Detail Content -->
-            <div class="space-y-6">
+            <div class="space-y-6 pt-6"> <!-- Added pt-6 for spacing below fixed header -->
                 <!-- Package List -->
                 <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                     <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
@@ -299,10 +326,10 @@
                             <thead class="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
                                 <tr>
                                     <th class="px-6 py-3">Tracking ID (TNO)</th>
-                                    <th class="px-6 py-3">New Status</th>
-                                    <th class="px-6 py-3">Old Status (Base)</th>
-                                    <th class="px-6 py-3">Route ID</th>
+                                    <th class="px-6 py-3">Updated Status</th>
                                     <th class="px-6 py-3">Address</th>
+                                    <th class="px-6 py-3">Latest Update Time</th>
+                                    <th class="px-6 py-3">Old Status (Base)</th>
                                 </tr>
                             </thead>
                             <tbody id="detail-table-body" class="divide-y divide-slate-100">
@@ -323,10 +350,21 @@
 
     <script>
         // --- Configuration & Constants ---
-        // Removed 'Address' from required base headers as it comes from Step 2
         const REQUIRED_BASE_HEADERS = ['TNO', 'Dest. WHS', 'Route ID', 'A-Scan WHS', 'Status at Inactivity', 'Inactivity Time (UTC)'];
-        const VALID_WHS = ['SEA', 'PDX', 'BOI', 'GEG', 'EUG', 'MSO', 'BIL'];
-        const ROUTE_OFFSET = 270000;
+        
+        // Define all valid WHS and their dynamic offsets (WHS ID + 4 zeros)
+        const WHS_ROUTE_OFFSETS = {
+            'SEA': 270000,
+            'PDX': 300000,
+            'GEG': 550000,
+            'BOI': 560000,
+            'EUG': 640000,
+            'BIL': 750000,
+            'MSO': 780000
+        };
+        
+        // Derive VALID_WHS from the map keys
+        const VALID_WHS = Object.keys(WHS_ROUTE_OFFSETS);
         
         // Past 200 Column Config
         const P200_COL_TRACKING = 2; // Column C
@@ -346,12 +384,13 @@
             show195: true,
             show199: true,
             excludeExceptions: false, // 203, 230, 213
+            exclude99XRoutes: false, // NEW: Exclude 992/998 routes
             
             // Time Filters S1
             activeTimeLabelS1: 'All',
             activeTimeRangeS1: {min: null, max: null},
             
-            // Time Filters S2 (NEW)
+            // Time Filters S2
             activeTimeLabelS2: 'All',
             activeTimeRangeS2: {min: null, max: null},
 
@@ -383,6 +422,7 @@
             toggle195: document.getElementById('toggle-195'),
             toggle199: document.getElementById('toggle-199'),
             toggleExclude: document.getElementById('toggle-exclude-exceptions'),
+            toggleExclude99X: document.getElementById('toggle-exclude-99x'), // NEW
 
             // New Section: Base Moved
             baseMovedSection: document.getElementById('base-moved-section'),
@@ -394,12 +434,12 @@
             copyS1: document.getElementById('copy-s1'),
             s1Count: document.getElementById('s1-count'),
             s1Title: document.getElementById('s1-copy-title'),
-            timeFiltersS1: document.getElementById('time-filters-s1'), // Renamed
+            timeFiltersS1: document.getElementById('time-filters-s1'), 
             
             // Section 2
             driverSection: document.getElementById('driver-section'),
             driverTableBody: document.getElementById('driver-table-body'),
-            timeFiltersS2: document.getElementById('time-filters-s2'), // NEW
+            timeFiltersS2: document.getElementById('time-filters-s2'), 
 
             // Detail View
             detailDriverId: document.getElementById('detail-driver-id'),
@@ -427,7 +467,7 @@
                 runAnalysis();
             });
             
-            // FIX 1: Reference Date change listener now triggers analysis
+            // Reference Date change listener now triggers analysis
             els.refDate.addEventListener('change', () => runAnalysis()); 
             
             els.driverSearch.addEventListener('input', (e) => {
@@ -447,12 +487,43 @@
                 state.excludeExceptions = e.target.checked;
                 runAnalysis();
             });
+            els.toggleExclude99X.addEventListener('change', (e) => { // NEW Listener
+                state.exclude99XRoutes = e.target.checked;
+                runAnalysis();
+            });
             
             // Initialize time filter buttons
             createTimeFilterButtons(els.timeFiltersS1, 'S1');
             createTimeFilterButtons(els.timeFiltersS2, 'S2');
         });
         
+        /**
+         * Converts Excel's date serial number to a short date string (M/D/YYYY).
+         * Handles both date-only (integer) and date-time (float) formats.
+         * @param {number|string} serial - Excel date serial number (e.g., 45991.74253472222)
+         * @returns {string} Formatted date string (e.g., 12/6/2025)
+         */
+        function excelSerialToShortDate(serial) {
+            if (typeof serial !== 'number' || serial <= 0) {
+                return String(serial); // Return raw string if not a valid number
+            }
+
+            // Excel base date is 1900-01-01 (or 1904-01-01 for Mac, but 1900 is standard)
+            // 25569 is the serial number for 1970-01-01.
+            const date = new Date(Math.round((serial - 25569) * 86400 * 1000));
+            
+            // If the date parsing fails, use the number-based calculation for the date component
+            if (isNaN(date.getTime())) {
+                const datePart = Math.floor(serial);
+                const msSinceEpoch = (datePart - 25569) * 86400 * 1000;
+                const d = new Date(msSinceEpoch);
+                return d.toLocaleDateString('en-US', { timeZone: 'UTC' });
+            }
+
+            return date.toLocaleDateString('en-US', { timeZone: 'UTC' });
+        }
+
+
         /**
          * Creates the time filter buttons and sets up their click handlers.
          * @param {HTMLElement} container - The DOM element to attach buttons to.
@@ -510,6 +581,8 @@
             } else if(viewName === 'detail') {
                 els.dashboardView.classList.add('hidden');
                 els.driverDetailView.classList.remove('hidden');
+                // Force scroll to top of the fixed header on view switch
+                window.scrollTo(0, 0); 
                 setTimeout(() => lucide.createIcons(), 50);
             }
         }
@@ -523,7 +596,7 @@
             els.step1Status.textContent = "Processing Base File...";
             els.step1Status.className = "mt-3 text-xs font-bold text-indigo-500 animate-pulse";
 
-            // Wrap in setTimeout to allow UI repaint (FIX 2)
+            // Wrap in setTimeout to allow UI repaint
             setTimeout(() => {
                 const reader = new FileReader();
                 reader.onload = function(evt) {
@@ -748,11 +821,24 @@
                     const statusCheck = effectiveStatus > 200 && effectiveStatus !== 255;
                     
                     let exclusionPass = true;
+                    
+                    // Exclusion Logic 1: 203, 230, 213
                     if(state.excludeExceptions) {
                         if(effectiveStatus === 203 || effectiveStatus === 230 || effectiveStatus === 213) {
                             exclusionPass = false;
                         }
                     }
+                    
+                    // Exclusion Logic 2: 992/998 Routes (FIXED: Checking Driver ID)
+                    if(exclusionPass && state.exclude99XRoutes) {
+                        const driverIdString = String(row.driverId); // Check Driver ID (Column S)
+                        
+                        // Check if the Driver ID ends in 992 or 998
+                        if (driverIdString.endsWith('992') || driverIdString.endsWith('998')) {
+                            exclusionPass = false;
+                        }
+                    }
+
 
                     return whsMatch && statusCheck && exclusionPass && timeMatch;
                 });
@@ -849,8 +935,17 @@
                 drivers[d].count++;
                 drivers[d].packages.push(row);
                 
+                // --- DYNAMIC OFFSET IMPLEMENTATION ---
+                const currentOffset = WHS_ROUTE_OFFSETS[row.destWhs] || 0; 
                 const rId = parseInt(row.routeId);
-                if(!isNaN(rId) && rId > ROUTE_OFFSET) drivers[d].routes.add(rId - ROUTE_OFFSET);
+                
+                // Only calculate derived route if a valid offset and route ID exists
+                if (!isNaN(rId) && currentOffset > 0 && rId > currentOffset) {
+                    drivers[d].routes.add(rId - currentOffset);
+                } else if (!isNaN(rId)) {
+                    // Fallback to showing the raw route ID if offset is unknown or zero
+                    drivers[d].routes.add(rId);
+                }
             });
 
             cachedDriverData = Object.values(drivers).sort((a,b) => b.count - a.count);
@@ -899,7 +994,7 @@
             // Header Info
             els.detailDriverId.innerHTML = `<i data-lucide="truck" class="w-6 h-6 text-blue-600"></i> ${driverData.id}`;
             
-            // Fix: Routes Display (Joined Route IDs)
+            // Fix: Routes Display (Joined Route IDs) - Use base Route ID here
             const routeStr = Array.from(driverData.routes).sort((a,b)=>a-b).join(', ') || 'N/A';
             els.detailMeta.innerHTML = `
                 <span class="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded text-slate-600"><i data-lucide="map-pin" class="w-3 h-3"></i> ${driverData.whs}</span>
@@ -926,14 +1021,18 @@
                 tr.className = "hover:bg-slate-50 transition-colors";
                 
                 const statusBadge = `<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-200">${pkg.newStatus || '-'}</span>`;
+                
+                // Convert Excel Serial Number to Short Date
+                const formattedTime = excelSerialToShortDate(pkg.inactivityTime);
 
-                // Replaced A-Scan WHS with Address in table
+                // --- Updated Column Order and Content ---
+                // Tracking ID (TNO), Updated Status, Address, Latest Update Time, Old Status (Base)
                 tr.innerHTML = `
                     <td class="px-6 py-3 font-mono text-slate-700 text-xs font-medium">${pkg.tno}</td>
                     <td class="px-6 py-3">${statusBadge}</td>
-                    <td class="px-6 py-3 text-slate-400 text-xs">${pkg.baseStatus}</td>
-                    <td class="px-6 py-3 text-slate-500 text-xs">${pkg.routeId}</td>
                     <td class="px-6 py-3 text-slate-600 text-xs max-w-md truncate" title="${pkg.address}">${pkg.address}</td>
+                    <td class="px-6 py-3 text-slate-500 text-xs">${formattedTime}</td> 
+                    <td class="px-6 py-3 text-slate-400 text-xs">${pkg.baseStatus}</td>
                 `;
                 els.detailBody.appendChild(tr);
             });
