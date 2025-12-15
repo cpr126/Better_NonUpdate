@@ -1,1166 +1,1325 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unified Logistics Analyzer</title>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    
-    <!-- SheetJS -->
-    <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unified Logistics Analyzer (Optimized)</title>
 
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        
-        /* Custom Scrollbar for tables */
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; }
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-        /* Animations */
-        .fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
 
-        /* Loading Overlay */
-        .loading-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255, 255, 255, 0.95); z-index: 50;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            visibility: hidden; opacity: 0; transition: all 0.3s;
-        }
-        .loading-overlay.visible { visibility: visible; opacity: 1; }
-        
-        /* FIX: Ensure detail header doesn't overlap content below navigation bar */
-        /* By setting top: 0, the browser will snap to this point upon view change */
-        #driver-detail-view .sticky-header {
-            position: sticky;
-            top: 0; 
-            z-index: 30;
-            /* We remove the padding adjustments here and rely on standard layout */
-            margin-top: 0; 
-            padding-top: 0;
-            /* Ensure it spans full width across the fixed main container margin */
-            margin-left: -1rem; 
-            margin-right: -1rem;
-            padding-left: 1rem;
-            padding-right: 1rem;
-        }
+  <!-- SheetJS -->
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
 
-        /* Adjust main layout spacing to account for the overall fixed header height (h-16) */
-        main {
-            padding-top: 0; /* Removing top padding on main to start content higher */
-        }
-    </style>
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #94a3b8; }
+
+    .fade-in { animation: fadeIn 0.3s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .loading-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(255, 255, 255, 0.95); z-index: 50;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      visibility: hidden; opacity: 0; transition: all 0.3s;
+    }
+    .loading-overlay.visible { visibility: visible; opacity: 1; }
+
+    #driver-detail-view .sticky-header {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      margin-top: 0;
+      padding-top: 0;
+      margin-left: -1rem;
+      margin-right: -1rem;
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+
+    main { padding-top: 0; }
+
+    .collapse-header { cursor: pointer; user-select: none; transition: background 0.2s; }
+    .collapse-content { display: none; overflow-y: auto; max-height: 250px; }
+    .collapse-content.expanded { display: block; }
+  </style>
 </head>
 <body class="text-slate-900">
 
-    <!-- Loading Overlay -->
-    <div id="loading-overlay" class="loading-overlay">
-        <div class="animate-spin text-indigo-600 mb-4">
-            <i data-lucide="loader-2" class="w-10 h-10"></i>
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="animate-spin text-indigo-600 mb-4"><i data-lucide="loader-2" class="w-10 h-10"></i></div>
+    <p class="text-lg font-semibold text-slate-700" id="loading-text">Processing Data...</p>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="bg-slate-900 text-white shadow-lg sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="bg-indigo-500 p-1.5 rounded-lg"><i data-lucide="bar-chart-3" class="w-5 h-5 text-white"></i></div>
+        <span class="font-bold text-lg tracking-tight">Non-update analyzer</span>
+      </div>
+      <div class="text-sm text-slate-400">
+        Status: <span id="system-status" class="text-emerald-400 font-medium">Ready for Upload</span>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-16">
+
+    <!-- ==================== UPLOAD SECTION ==================== -->
+    <div id="upload-section" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <!-- Step 1 Card -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group">
+        <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+          <i data-lucide="file-spreadsheet" class="w-24 h-24 text-indigo-600"></i>
         </div>
-        <p class="text-lg font-semibold text-slate-700" id="loading-text">Processing Data...</p>
+        <h2 class="lg font-bold text-slate-900 mb-1 flex items-center gap-2">
+          <span class="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
+          Base File (NonUpdate)
+        </h2>
+        <p class="text-sm text-slate-500 mb-4">Upload Nonupdate Data Excel from PowerBI</p>
+
+        <label class="block">
+          <span class="sr-only">Choose file</span>
+          <input type="file" id="file1" accept=".xlsx, .xls, .csv"
+            class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer transition-colors"/>
+        </label>
+        <div id="status-step1" class="mt-3 text-xs font-medium text-slate-400 min-h-[20px]">Waiting for file...</div>
+      </div>
+
+      <!-- Step 2 Card -->
+      <div id="step2-container" class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group opacity-50 pointer-events-none transition-all">
+        <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+          <i data-lucide="users" class="w-24 h-24 text-blue-600"></i>
+        </div>
+        <h2 class="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
+          <span class="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
+          Driver Files (Update Check)
+        </h2>
+        <p class="text-sm text-slate-500 mb-4">Upload MultiSearch Record File(s) <br><span class="text-xs text-blue-600 font-semibold">Checks for Status > 200 (excl. 255)</span></p>
+
+        <label class="block">
+          <span class="sr-only">Choose file</span>
+          <input type="file" id="file2" multiple accept=".xlsx, .xls, .csv"
+            class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer transition-colors"/>
+        </label>
+        <div id="status-step2" class="mt-3 text-xs font-medium text-slate-400 min-h-[20px]">Waiting for Step 1...</div>
+      </div>
+
+      <!-- Step 3 Card (DSP Input) -->
+      <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group">
+        <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+          <i data-lucide="building" class="w-24 h-24 text-green-600"></i>
+        </div>
+        <h2 class="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
+          <span class="bg-green-100 text-green-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">3</span>
+          DSP Data Input
+        </h2>
+        <p class="text-sm text-slate-500 mb-2">Paste raw Route/DSP text data below to enable DSP filtering.</p>
+        <textarea id="dsp-input" rows="4" placeholder="Example: 270001 523 Airway" class="w-full p-2 border border-slate-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"></textarea>
+        <button id="btn-dsp" class="w-full mt-2 px-3 py-1.5 text-sm font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow">
+          Process DSP List
+        </button>
+        <div id="status-step3" class="mt-3 text-xs font-medium text-slate-400 min-h-[20px]">Waiting for input...</div>
+      </div>
     </div>
 
-    <!-- Navigation -->
-    <nav class="bg-slate-900 text-white shadow-lg sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <div class="bg-indigo-500 p-1.5 rounded-lg">
-                    <i data-lucide="bar-chart-3" class="w-5 h-5 text-white"></i>
-                </div>
-                <span class="font-bold text-lg tracking-tight">Better NonUpdate Tool</span>
-            </div>
-            <div class="text-sm text-slate-400">
-                Status: <span id="system-status" class="text-emerald-400 font-medium">Ready for Upload</span>
-            </div>
+    <!-- ==================== DASHBOARD VIEW ==================== -->
+    <div id="dashboard-view" class="space-y-8 hidden fade-in">
+
+      <!-- Global Filter -->
+      <div class="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div>
+          <h3 class="font-bold text-slate-800">Global Filters</h3>
+          <p class="text-xs text-slate-500">Filters apply to sections below.</p>
         </div>
-    </nav>
+        <div class="flex items-center gap-4">
+          <label class="flex items-center gap-2 text-sm font-bold text-slate-600 cursor-pointer select-none bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
+            <input type="checkbox" id="toggle-ascan-section" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+            Show A-Scan
+          </label>
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-16">
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium text-slate-600">Reference Date:</label>
+            <input type="date" id="reference-date" class="text-sm border-slate-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+          </div>
+          <select id="whs-filter" class="text-sm border-slate-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 min-w-[150px]"></select>
 
-        <!-- ==================== UPLOAD SECTION ==================== -->
-        <div id="upload-section" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Step 1 Card -->
-            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group">
-                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <i data-lucide="file-spreadsheet" class="w-24 h-24 text-indigo-600"></i>
-                </div>
-                <h2 class="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
-                    <span class="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
-                    Base File (NonUpdate)
-                </h2>
-                <p class="text-sm text-slate-500 mb-4">Upload Nonupdate Data Excel from PowerBI</p>
-                
-                <label class="block">
-                    <span class="sr-only">Choose file</span>
-                    <input type="file" id="file1" accept=".xlsx, .xls, .csv" 
-                        class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer transition-colors"/>
-                </label>
-                <div id="status-step1" class="mt-3 text-xs font-medium text-slate-400 min-h-[20px]">Waiting for file...</div>
-            </div>
+          <select id="dsp-filter" class="text-sm border-slate-300 rounded-md shadow-sm focus:border-green-500 focus:ring-green-500 min-w-[150px] opacity-50 pointer-events-none">
+            <option value="ALL">All DSPs</option>
+          </select>
 
-            <!-- Step 2 Card -->
-            <div id="step2-container" class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 relative overflow-hidden group opacity-50 pointer-events-none transition-all">
-                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <i data-lucide="users" class="w-24 h-24 text-blue-600"></i>
-                </div>
-                <h2 class="text-lg font-bold text-slate-900 mb-1 flex items-center gap-2">
-                    <span class="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
-                    Driver Files (Update Check)
-                </h2>
-                <p class="text-sm text-slate-500 mb-4">Upload MultiSearch Record File(s) <br><span class="text-xs text-blue-600 font-semibold">Checks for Status > 200 (excl. 255)</span></p>
-                
-                <label class="block">
-                    <span class="sr-only">Choose file</span>
-                    <input type="file" id="file2" multiple accept=".xlsx, .xls, .csv" 
-                        class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer transition-colors"/>
-                </label>
-                <div id="status-step2" class="mt-3 text-xs font-medium text-slate-400 min-h-[20px]">Waiting for Step 1...</div>
-            </div>
+          <button id="btn-reset" class="text-sm text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-1.5 rounded transition">Reset</button>
         </div>
+      </div>
 
-        <!-- ==================== DASHBOARD VIEW ==================== -->
-        <div id="dashboard-view" class="space-y-8 hidden fade-in">
-            
-            <!-- Global Filter -->
-            <div class="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <div>
-                    <h3 class="font-bold text-slate-800">Global Filters</h3>
-                    <p class="text-xs text-slate-500">Filters apply to sections below.</p>
-                </div>
-                <div class="flex items-center gap-4">
-                    <!-- A-Scan Toggle (NEW) -->
-                    <label class="flex items-center gap-2 text-sm font-bold text-slate-600 cursor-pointer select-none bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
-                        <input type="checkbox" id="toggle-ascan-section" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"> 
-                        Show A-Scan
-                    </label>
-
-                    <div class="flex items-center gap-2">
-                        <label class="text-sm font-medium text-slate-600">Reference Date:</label>
-                        <input type="date" id="reference-date" class="text-sm border-slate-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                    </div>
-                    <select id="whs-filter" class="text-sm border-slate-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 min-w-[150px]">
-                        <!-- Populated by JS -->
-                    </select>
-                    <button onclick="resetAnalysis()" class="text-sm text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-1.5 rounded transition">
-                        Reset
-                    </button>
-                </div>
+      <!-- SECTION: PRE-MOVED (BASE FILE CHECK) -->
+      <section id="base-moved-section" class="hidden">
+        <div class="bg-amber-50 rounded-xl border border-amber-200 shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-amber-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 class="lg font-bold text-amber-900 flex items-center gap-2">
+                <i data-lucide="alert-circle" class="w-5 h-5 text-amber-600"></i>
+                Please download Status&gt;200 Tracking Information
+              </h2>
+              <p class="text-xs text-amber-700 mt-1">
+                <span id="base-moved-count" class="font-bold">0</span> records found in Base File with Status &gt; 200 (excluding 255).
+              </p>
             </div>
+          </div>
+          <div class="p-6">
+            <h4 class="text-xs font-semibold text-amber-800 uppercase tracking-wider mb-3">Copy TNOs (Batch 400)</h4>
+            <div id="copy-base-moved" class="flex flex-wrap gap-2"></div>
+          </div>
+        </div>
+      </section>
 
-            <!-- SECTION: PRE-MOVED (BASE FILE CHECK) -->
-            <section id="base-moved-section" class="hidden">
-                <div class="bg-amber-50 rounded-xl border border-amber-200 shadow-sm overflow-hidden">
-                    <div class="px-6 py-4 border-b border-amber-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                            <h2 class="text-lg font-bold text-amber-900 flex items-center gap-2">
-                                <i data-lucide="alert-circle" class="w-5 h-5 text-amber-600"></i>
-                                Please download Status>200 Tracking Information
-                            </h2>
-                            <p class="text-xs text-amber-700 mt-1">
-                                <span id="base-moved-count" class="font-bold">0</span> records found in Base File with Status > 200 (excluding 255).
-                                Use these to download updated Driver data.
-                            </p>
-                        </div>
-                    </div>
-                    
-                    <div class="p-6">
-                        <h4 class="text-xs font-semibold text-amber-800 uppercase tracking-wider mb-3">Copy TNOs (Batch 400)</h4>
-                        <div id="copy-base-moved" class="flex flex-wrap gap-2">
-                            <!-- Copy Buttons -->
-                        </div>
-                    </div>
-                </div>
-            </section>
+      <!-- SECTION 1: A-SCAN ANALYSIS -->
+      <section id="ascan-analysis-section">
+        <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="package-search" class="w-5 h-5 text-indigo-600"></i>
+              A-Scan Analysis
+            </h2>
+            <span class="text-xs font-medium text-slate-500">Base Filter: Status 195/199</span>
+          </div>
 
-            <!-- SECTION 1: A-SCAN ANALYSIS -->
-            <section id="ascan-analysis-section">
-                <div class="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
-                    <div>
-                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                            <i data-lucide="package-search" class="w-5 h-5 text-indigo-600"></i>
-                            A-Scan Analysis
-                        </h2>
-                        <span class="text-xs font-medium text-slate-500">Base Filter: Status 195/199</span>
-                    </div>
-                    
-                    <div class="flex items-center gap-4">
-                        <!-- 195/199 Toggles -->
-                        <div class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-1.5 shadow-sm">
-                            <label class="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer px-2 select-none hover:text-indigo-600 transition-colors">
-                                <input type="checkbox" id="toggle-195" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"> 
-                                Status 195
-                            </label>
-                            <div class="w-px h-4 bg-slate-200"></div>
-                            <label class="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer px-2 select-none hover:text-indigo-600 transition-colors">
-                                <input type="checkbox" id="toggle-199" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"> 
-                                Status 199
-                            </label>
-                        </div>
-                        <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded hidden md:inline-block">Select card to filter</span>
-                    </div>
-                </div>
-                
-                <!-- Date Filters (Quick Toggles) -->
-                <div id="time-filters-s1" class="flex flex-wrap gap-2 mb-4">
-                    <!-- Populated by JS -->
-                </div>
-
-                <!-- A-Scan Cards Grid -->
-                <div id="ascan-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
-                    <!-- Populated by JS -->
-                </div>
-
-                <!-- Copy Box Section 1 -->
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div class="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
-                        <h3 class="font-semibold text-slate-700 text-sm" id="s1-copy-title">TNO Copy List</h3>
-                        <span id="s1-count" class="text-xs font-mono bg-indigo-100 text-indigo-700 px-2 py-1 rounded">0 items</span>
-                    </div>
-                    <div class="p-4">
-                        <div id="copy-s1" class="flex flex-wrap gap-2"></div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- SECTION 2: DRIVER ANALYSIS -->
-            <section id="driver-section">
-                <div class="flex flex-col md:flex-row md:items-end justify-between mb-4 pt-6 border-t border-slate-200 gap-4">
-                    <div>
-                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-                            <i data-lucide="truck" class="w-5 h-5 text-blue-600"></i>
-                            Updated Status Analysis
-                        </h2>
-                        <p class="text-xs text-blue-600 font-medium mt-1">
-                            Showing items from Base List that are now Status > 200 (excluding 255).
-                        </p>
-                    </div>
-                    <div class="flex flex-col sm:flex-row items-center gap-4">
-                        
-                        <!-- Exclude Main Scan Toggle (NEW) -->
-                         <label class="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
-                            <input type="checkbox" id="toggle-exclude-main" class="w-4 h-4 rounded text-rose-500 focus:ring-rose-500 border-slate-300">
-                            Exclude Main Scan
-                        </label>
-                        
-                        <!-- Exclude 992/998 Toggle (RENAMED) -->
-                        <label class="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
-                            <input type="checkbox" id="toggle-exclude-99x" class="w-4 h-4 rounded text-rose-500 focus:ring-rose-500 border-slate-300">
-                            Exclude 992/998
-                        </label>
-
-                        <!-- Exclude 203/230/213 Toggle -->
-                        <label class="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
-                            <input type="checkbox" id="toggle-exclude-exceptions" class="w-4 h-4 rounded text-rose-500 focus:ring-rose-500 border-slate-300">
-                            Exclude 203 / 230 / 213
-                        </label>
-                        
-                        <div class="relative">
-                            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                            <input type="text" id="driver-search" placeholder="Search Driver ID..." 
-                                class="pl-9 pr-4 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-64 shadow-sm">
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Date Filters (Quick Toggles for S2) -->
-                <div id="time-filters-s2" class="flex flex-wrap gap-2 mb-4">
-                    <!-- Populated by JS -->
-                </div>
-
-                <!-- Drivers Table -->
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col max-h-[600px]">
-                    <div class="overflow-x-auto custom-scrollbar">
-                        <table class="w-full text-left text-sm">
-                            <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0 z-10">
-                                <tr>
-                                    <th class="px-6 py-3">Driver ID</th>
-                                    <th class="px-6 py-3">Assigned Route(s)</th>
-                                    <th class="px-6 py-3">Dest WHS</th>
-                                    <th class="px-6 py-3 text-right">Matching Packages</th>
-                                    <th class="px-6 py-3"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="driver-table-body" class="divide-y divide-slate-100">
-                                <!-- Populated by JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3 bg-white border border-slate-200 rounded-lg p-1.5 shadow-sm">
+              <label class="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer px-2 select-none hover:text-indigo-600 transition-colors">
+                <input type="checkbox" id="toggle-195" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                Status 195
+              </label>
+              <div class="w-px h-4 bg-slate-200"></div>
+              <label class="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer px-2 select-none hover:text-indigo-600 transition-colors">
+                <input type="checkbox" id="toggle-199" checked class="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300">
+                Status 199
+              </label>
+            </div>
+            <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded hidden md:inline-block">Select card to filter</span>
+          </div>
         </div>
 
-        <!-- ==================== DRIVER DETAIL VIEW ==================== -->
-        <div id="driver-detail-view" class="hidden fade-in min-h-screen">
-            <!-- Header -->
-            <div class="bg-white border-b border-slate-200 shadow-sm -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-4 sticky-header">
-                <button onclick="switchView('dashboard')" class="flex items-center text-sm text-slate-500 hover:text-slate-800 transition-colors mb-2">
-                    <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> Back to Dashboard
-                </button>
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                        <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2" id="detail-driver-id">
-                            <!-- JS -->
-                        </h1>
-                        <div class="flex items-center gap-3 mt-1 text-sm text-slate-500" id="detail-driver-meta">
-                            <!-- JS -->
-                        </div>
-                    </div>
-                    <div class="flex gap-4">
-                        <div class="bg-blue-50 px-4 py-2 rounded-lg border border-blue-100">
-                            <div class="text-xs text-blue-600 font-semibold uppercase tracking-wider">Past 200 Pkgs</div>
-                            <div class="text-2xl font-bold text-blue-900" id="detail-total-vol">-</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div id="time-filters-s1" class="flex flex-wrap gap-2 mb-4"></div>
 
-            <!-- Detail Content -->
-            <div class="space-y-6 pt-6"> <!-- Added pt-6 for spacing below fixed header -->
-                <!-- Package List -->
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-                        <h3 class="font-semibold text-slate-800 flex items-center gap-2">
-                            <i data-lucide="box" class="w-4 h-4 text-slate-500"></i> Package Details
-                        </h3>
-                        <div id="detail-copy-container">
-                            <!-- Copy Button inserted here -->
-                        </div>
-                    </div>
-                    <div class="overflow-x-auto custom-scrollbar">
-                        <table class="w-full text-sm text-left">
-                            <thead class="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
-                                <tr>
-                                    <th class="px-6 py-3">Tracking ID (TNO)</th>
-                                    <th class="px-6 py-3">Updated Status</th>
-                                    <th class="px-6 py-3">Address</th>
-                                    <th class="px-6 py-3">Latest Update Time</th>
-                                    <th class="px-6 py-3">Old Status (Base)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="detail-table-body" class="divide-y divide-slate-100">
-                                <!-- JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+        <div id="ascan-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6"></div>
+
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="bg-slate-50 px-4 py-3 border-b border-slate-200 flex justify-between items-center">
+            <h3 class="font-semibold text-slate-700 text-sm" id="s1-copy-title">TNO Copy List</h3>
+            <span id="s1-count" class="text-xs font-mono bg-indigo-100 text-indigo-700 px-2 py-1 rounded">0 items</span>
+          </div>
+          <div class="p-4"><div id="copy-s1" class="flex flex-wrap gap-2"></div></div>
+        </div>
+      </section>
+
+      <!-- SECTION 2: DRIVER ANALYSIS -->
+      <section id="driver-section">
+        <div class="flex flex-col md:flex-row md:items-end justify-between mb-4 pt-6 border-t border-slate-200 gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <i data-lucide="truck" class="w-5 h-5 text-blue-600"></i>
+              Updated Status Analysis
+            </h2>
+            <p class="text-xs text-blue-600 font-medium mt-1">Showing items from Base List that are now Status &gt; 200 (excluding 255).</p>
+          </div>
+          <div class="flex flex-col sm:flex-row items-center gap-4">
+            <label class="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
+              <input type="checkbox" id="toggle-exclude-main" class="w-4 h-4 rounded text-rose-500 focus:ring-rose-500 border-slate-300">
+              Exclude Main Scan
+            </label>
+            <label class="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
+              <input type="checkbox" id="toggle-exclude-99x" class="w-4 h-4 rounded text-rose-500 focus:ring-rose-500 border-slate-300">
+              Exclude 992/998
+            </label>
+            <label class="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
+              <input type="checkbox" id="toggle-exclude-exceptions" class="w-4 h-4 rounded text-rose-500 focus:ring-rose-500 border-slate-300">
+              Exclude 203 / 230 / 213
+            </label>
+            <div class="relative">
+              <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+              <input type="text" id="driver-search" placeholder="Search Driver ID..." class="pl-9 pr-4 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-64 shadow-sm">
             </div>
+          </div>
         </div>
 
-    </main>
-    
-    <!-- Footer -->
-    <div class="fixed bottom-2 right-4 text-xs text-slate-400 font-medium pointer-events-none z-50">
-        Created by Peter C.
+        <div id="time-filters-s2" class="flex flex-wrap gap-2 mb-4"></div>
+        <div class="mb-6 space-y-3" id="disposition-summary-container"></div>
+
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col max-h-[600px]">
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left text-sm">
+              <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200 sticky top-0 z-10">
+                <tr>
+                  <th class="px-6 py-3">Driver ID</th>
+                  <th class="px-6 py-3">Assigned Route(s)</th>
+                  <th class="px-6 py-3">DSP Name</th>
+                  <th class="px-6 py-3 text-right">NonUpdate Package Count</th>
+                  <th class="px-6 py-3"></th>
+                </tr>
+              </thead>
+              <tbody id="driver-table-body" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
     </div>
 
-    <script>
-        // --- Configuration & Constants ---
-        const REQUIRED_BASE_HEADERS = ['TNO', 'Dest. WHS', 'Route ID', 'A-Scan WHS', 'Status at Inactivity', 'Inactivity Time (UTC)'];
-        
-        // Define all valid WHS and their dynamic offsets (WHS ID + 4 zeros)
-        const WHS_ROUTE_OFFSETS = {
-            'SEA': 270000,
-            'PDX': 300000,
-            'GEG': 550000,
-            'BOI': 560000,
-            'EUG': 640000,
-            'BIL': 750000,
-            'MSO': 780000
+    <!-- ==================== DRIVER DETAIL VIEW ==================== -->
+    <div id="driver-detail-view" class="hidden fade-in min-h-screen">
+      <div class="bg-white border-b border-slate-200 shadow-sm -mx-4 sm:-mx-6 lg:-lg-8 px-4 sm:px-6 lg:px-8 py-4 sticky-header">
+        <button id="btn-back" class="flex items-center text-sm text-slate-500 hover:text-slate-800 transition-colors mb-2">
+          <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i> Back to Dashboard
+        </button>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2" id="detail-driver-id"></h1>
+            <div class="flex items-center gap-3 mt-1 text-sm text-slate-500" id="detail-driver-meta"></div>
+          </div>
+          <div class="flex gap-4">
+            <div class="bg-blue-50 px-4 py-2 rounded-lg border border-blue-100">
+              <div class="text-xs text-blue-600 font-semibold uppercase tracking-wider">Past 200 Pkgs</div>
+              <div class="text-2xl font-bold text-blue-900" id="detail-total-vol">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-6 pt-6">
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+            <h3 class="font-semibold text-slate-800 flex items-center gap-2"><i data-lucide="box" class="w-4 h-4 text-slate-500"></i> Package Details</h3>
+            <div id="detail-copy-container"></div>
+          </div>
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-sm text-left">
+              <thead class="bg-slate-50 text-slate-500 font-medium border-b border-slate-200">
+                <tr>
+                  <th class="px-6 py-3">Tracking ID (TNO)</th>
+                  <th class="px-6 py-3">Updated Status</th>
+                  <th class="px-6 py-3">Address</th>
+                  <th class="px-6 py-3">Latest Update Time</th>
+                  <th class="px-6 py-3">Old Status (Base)</th>
+                </tr>
+              </thead>
+              <tbody id="detail-table-body" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <div class="fixed bottom-2 right-4 text-xs text-slate-400 font-medium pointer-events-none z-50">Created by Peter C.</div>
+
+  <script>
+    // =========================
+    // PERFORMANCE NOTES (WHAT CHANGED)
+    // - Driver files were parsed with readAsBinaryString + XLSX.read({type:'binary'}) and sheet_to_json called twice.
+    //   This is slower and allocates a lot of memory. (Original lines: readAsBinaryString, sheet_to_json header:1 + full) 
+    // - Base file used sheet_to_json into full objects, which is convenient but expensive on big sheets.
+    //
+    // Optimizations:
+    // 1) Use ArrayBuffer everywhere: FileReader.readAsArrayBuffer + XLSX.read({type:'array'}).
+    // 2) Read only once per sheet: extract header row and then iterate row arrays (header:1) in a tight loop.
+    // 3) Avoid creating giant intermediate arrays via data.slice(1).map(...). We now loop and push.
+    // 4) Optional: reduce SheetJS overhead by disabling cell HTML + by using raw values.
+    // =========================
+
+    const REQUIRED_BASE_HEADERS = ['TNO', 'Dest. WHS', 'Route ID', 'A-Scan WHS', 'Status at Inactivity', 'Inactivity Time (UTC)'];
+
+    const WHS_ROUTE_OFFSETS = {
+      'SEA': 270000,
+      'PDX': 300000,
+      'GEG': 550000,
+      'BOI': 560000,
+      'EUG': 640000,
+      'BIL': 750000,
+      'MSO': 780000
+    };
+
+    const VALID_WHS = Object.keys(WHS_ROUTE_OFFSETS);
+
+    // Past 200 Column Config (as in your original)
+    const P200_COL_TRACKING = 2; // Column C
+    const P200_COL_DRIVER = 18;  // Column S
+
+    let state = {
+      baseData: [],
+      baseDataMap: null,
+      mergedData: [],
+
+      activeDestWhs: 'ALL',
+      activeAScanWhs: null,
+      activeDSP: 'ALL',
+
+      dspMap: new Map(),
+
+      show195: true,
+      show199: true,
+      excludeExceptions: false,
+      exclude99XRoutes: false,
+      excludeMainScan: false,
+      showAscanSection: true,
+
+      activeTimeLabelS1: 'All',
+      activeTimeRangeS1: {N: null, M: null},
+      activeTimeLabelS2: 'All',
+      activeTimeRangeS2: {N: null, M: null},
+
+      currentView: 'dashboard',
+      selectedDriverData: null
+    };
+
+    const els = {
+      loader: document.getElementById('loading-overlay'),
+      loadText: document.getElementById('loading-text'),
+
+      dashboardView: document.getElementById('dashboard-view'),
+      driverDetailView: document.getElementById('driver-detail-view'),
+
+      step1Status: document.getElementById('status-step1'),
+      step2Container: document.getElementById('step2-container'),
+      step2Status: document.getElementById('status-step2'),
+
+      dspInput: document.getElementById('dsp-input'),
+      step3Status: document.getElementById('status-step3'),
+
+      whsSelect: document.getElementById('whs-filter'),
+      dspSelect: document.getElementById('dsp-filter'),
+      refDate: document.getElementById('reference-date'),
+      driverSearch: document.getElementById('driver-search'),
+
+      toggle195: document.getElementById('toggle-195'),
+      toggle199: document.getElementById('toggle-199'),
+      toggleExclude: document.getElementById('toggle-exclude-exceptions'),
+      toggleExclude99X: document.getElementById('toggle-exclude-99x'),
+      toggleAscanSection: document.getElementById('toggle-ascan-section'),
+      toggleExcludeMain: document.getElementById('toggle-exclude-main'),
+
+      baseMovedSection: document.getElementById('base-moved-section'),
+      baseMovedCount: document.getElementById('base-moved-count'),
+      copyBaseMoved: document.getElementById('copy-base-moved'),
+
+      ascanAnalysisSection: document.getElementById('ascan-analysis-section'),
+      ascanGrid: document.getElementById('ascan-grid'),
+      copyS1: document.getElementById('copy-s1'),
+      s1Count: document.getElementById('s1-count'),
+      s1Title: document.getElementById('s1-copy-title'),
+      timeFiltersS1: document.getElementById('time-filters-s1'),
+
+      driverSection: document.getElementById('driver-section'),
+      driverTableBody: document.getElementById('driver-table-body'),
+      timeFiltersS2: document.getElementById('time-filters-s2'),
+      dispositionContainer: document.getElementById('disposition-summary-container'),
+
+      detailDriverId: document.getElementById('detail-driver-id'),
+      detailMeta: document.getElementById('detail-driver-meta'),
+      detailVol: document.getElementById('detail-total-vol'),
+      detailBody: document.getElementById('detail-table-body'),
+      detailCopy: document.getElementById('detail-copy-container')
+    };
+
+    // --- Initialization ---
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      els.refDate.valueAsDate = new Date();
+
+      document.getElementById('file1').addEventListener('change', handleBaseFileUpload);
+      document.getElementById('file2').addEventListener('change', handleDriverFileUploads);
+
+      document.getElementById('btn-dsp').addEventListener('click', handleDSPDataInput);
+      document.getElementById('btn-reset').addEventListener('click', resetAnalysis);
+      document.getElementById('btn-back').addEventListener('click', () => switchView('dashboard'));
+
+      els.whsSelect.addEventListener('change', (e) => {
+        state.activeDestWhs = e.target.value;
+        state.activeAScanWhs = null;
+        runAnalysis();
+      });
+
+      els.dspSelect.addEventListener('change', (e) => {
+        state.activeDSP = e.target.value;
+        runAnalysis();
+      });
+
+      els.refDate.addEventListener('change', () => runAnalysis());
+      els.driverSearch.addEventListener('input', (e) => renderDriverTable(e.target.value));
+
+      els.toggle195.addEventListener('change', (e) => { state.show195 = e.target.checked; runAnalysis(); });
+      els.toggle199.addEventListener('change', (e) => { state.show199 = e.target.checked; runAnalysis(); });
+      els.toggleExclude.addEventListener('change', (e) => { state.excludeExceptions = e.target.checked; runAnalysis(); });
+      els.toggleExclude99X.addEventListener('change', (e) => { state.exclude99XRoutes = e.target.checked; runAnalysis(); });
+      els.toggleExcludeMain.addEventListener('change', (e) => { state.excludeMainScan = e.target.checked; runAnalysis(); });
+      els.toggleAscanSection.addEventListener('change', (e) => {
+        state.showAscanSection = e.target.checked;
+        els.ascanAnalysisSection.classList.toggle('hidden', !state.showAscanSection);
+      });
+
+      createTimeFilterButtons(els.timeFiltersS1, 'S1');
+      createTimeFilterButtons(els.timeFiltersS2, 'S2');
+
+      populateWHSFilter();
+    });
+
+    // =========================
+    // FAST FILE READING HELPERS
+    // =========================
+
+    function readFileAsArrayBuffer(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error('File read failed'));
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    // SheetJS parsing options: reduce overhead (still safe for your use)
+    function readWorkbookFromArrayBuffer(arrayBuffer) {
+      return XLSX.read(arrayBuffer, {
+        type: 'array',
+        cellHTML: false,
+        cellNF: false,
+        cellStyles: false,
+        // dense arrays can be faster and more memory-efficient on large sheets
+        dense: true
+      });
+    }
+
+    // Convert worksheet (dense or normal) to row arrays efficiently
+    function sheetToRows(sheet) {
+      return XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        raw: true,
+        defval: null,
+        blankrows: false
+      });
+    }
+
+    function buildHeaderIndex(headers) {
+      const idx = new Map();
+      for (let i = 0; i < headers.length; i++) {
+        const h = headers[i];
+        if (typeof h === 'string' && h.trim()) idx.set(h.trim(), i);
+      }
+      return idx;
+    }
+
+    // =========================
+    // DATE HELPERS
+    // =========================
+
+    function excelSerialToShortDate(serial) {
+      if (typeof serial !== 'number' || serial <= 0) return String(serial);
+      const date = new Date(Math.round((serial - 25569) * 86400 * 1000));
+      if (isNaN(date.getTime())) {
+        const datePart = Math.floor(serial);
+        const msSinceEpoch = (datePart - 25569) * 86400 * 1000;
+        const d = new Date(msSinceEpoch);
+        return d.toLocaleDateString('en-US', { timeZone: 'UTC' });
+      }
+      return date.toLocaleDateString('en-US', { timeZone: 'UTC' });
+    }
+
+    function getDaysDifference(refDate, pkgDate) {
+      if (!pkgDate) return Infinity;
+      const MS_PER_DAY = 86400000;
+      const refMidnight = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
+      const pkgMidnight = new Date(pkgDate.getFullYear(), pkgDate.getMonth(), pkgDate.getDate());
+      const diffTime = refMidnight.getTime() - pkgMidnight.getTime();
+      return Math.round(diffTime / MS_PER_DAY);
+    }
+
+    // =========================
+    // DSP INPUT
+    // =========================
+
+    function handleDSPDataInput() {
+      const rawText = els.dspInput.value;
+      if (!rawText.trim()) {
+        state.dspMap.clear();
+        els.step3Status.textContent = 'DSP list cleared.';
+        els.step3Status.className = 'mt-3 text-xs font-bold text-slate-500';
+        populateDSPFilter();
+        runAnalysis();
+        return;
+      }
+
+      const newDspMap = new Map();
+      const lines = rawText.trim().split('\n');
+      let parsedCount = 0;
+
+      for (const line of lines) {
+        const match = line.trim().match(/^(\d+)\s+(?:\d+\s+)?(.*)$/);
+        if (!match) continue;
+
+        const fullRouteId = String(match[1]).trim();
+        const dspRaw = String(match[2] || '').trim();
+        const parts = dspRaw.split(/\s+/).filter(Boolean);
+
+        const dspNameParts = [];
+        for (const part of parts) {
+          if (isNaN(parseInt(part, 10))) dspNameParts.push(part);
+        }
+
+        let dspName = dspNameParts.join(' ').toUpperCase().trim();
+        if (dspName.includes('CALI') && dspName.includes('GO')) dspName = 'GO CALI';
+
+        if (fullRouteId && dspName) {
+          newDspMap.set(fullRouteId, dspName);
+          parsedCount++;
+        }
+      }
+
+      state.dspMap = newDspMap;
+      els.step3Status.textContent = `Success: Loaded ${parsedCount} Route-DSP mappings.`;
+      els.step3Status.className = 'mt-3 text-xs font-bold text-green-600';
+
+      // If base is already loaded, refresh DSP names on base rows without re-parsing file
+      if (state.baseData.length) {
+        for (const row of state.baseData) {
+          const fullRouteId = String(row['Route ID']).trim();
+          row._dspName = state.dspMap.get(fullRouteId) || row._dspName || 'N/A';
+        }
+        // No need to rebuild baseDataMap
+      }
+
+      populateDSPFilter();
+      runAnalysis();
+    }
+
+    function populateDSPFilter() {
+      const allDSPs = new Set();
+      allDSPs.add('ALL');
+
+      if (state.baseData.length) {
+        for (const row of state.baseData) allDSPs.add(row._dspName || 'N/A');
+      }
+      for (const dsp of state.dspMap.values()) allDSPs.add(dsp);
+
+      allDSPs.delete('ALL');
+      const hasNA = allDSPs.has('N/A');
+      allDSPs.delete('N/A');
+
+      const sorted = Array.from(allDSPs).sort();
+
+      els.dspSelect.innerHTML = '';
+      els.dspSelect.innerHTML += '<option value="ALL">All DSPs</option>';
+      for (const dsp of sorted) {
+        const opt = document.createElement('option');
+        opt.value = dsp;
+        opt.textContent = dsp;
+        els.dspSelect.appendChild(opt);
+      }
+      if (hasNA) els.dspSelect.innerHTML += '<option value="N/A">N/A</option>';
+
+      els.dspSelect.classList.toggle('opacity-50', state.dspMap.size === 0);
+      els.dspSelect.classList.toggle('pointer-events-none', state.dspMap.size === 0);
+
+      if (!sorted.includes(state.activeDSP) && state.activeDSP !== 'ALL' && state.activeDSP !== 'N/A') {
+        state.activeDSP = 'ALL';
+      }
+      els.dspSelect.value = state.activeDSP;
+    }
+
+    // =========================
+    // VIEW SWITCH
+    // =========================
+
+    function switchView(viewName) {
+      state.currentView = viewName;
+      if (viewName === 'dashboard') {
+        els.dashboardView.classList.remove('hidden');
+        els.driverDetailView.classList.add('hidden');
+
+        const driverSection = document.getElementById('driver-section');
+        if (driverSection) {
+          const navBarHeight = 64;
+          const offset = driverSection.offsetTop - navBarHeight;
+          window.scrollTo({ top: offset, behavior: 'smooth' });
+        } else {
+          window.scrollTo(0, 0);
+        }
+
+        els.ascanAnalysisSection.classList.toggle('hidden', !state.showAscanSection);
+        setTimeout(() => lucide.createIcons(), 50);
+      } else {
+        els.dashboardView.classList.add('hidden');
+        els.driverDetailView.classList.remove('hidden');
+        window.scrollTo(0, 0);
+        setTimeout(() => lucide.createIcons(), 50);
+      }
+    }
+
+    // =========================
+    // STEP 1: BASE FILE (FAST)
+    // =========================
+
+    async function handleBaseFileUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      els.step1Status.textContent = 'Processing Base File...';
+      els.step1Status.className = 'mt-3 text-xs font-bold text-indigo-500 animate-pulse';
+
+      // Let the UI paint
+      await new Promise(r => setTimeout(r, 0));
+      showLoading(true, 'Parsing Base File...');
+
+      try {
+        const buf = await readFileAsArrayBuffer(file);
+        const wb = readWorkbookFromArrayBuffer(buf);
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+
+        const rows = sheetToRows(sheet);
+        if (!rows.length) throw new Error('File empty');
+
+        const headers = rows[0] || [];
+        const idx = buildHeaderIndex(headers);
+
+        const missing = REQUIRED_BASE_HEADERS.filter(h => !idx.has(h));
+        if (missing.length) throw new Error(`Missing headers: ${missing.join(', ')}`);
+
+        const iTno = idx.get('TNO');
+        const iDest = idx.get('Dest. WHS');
+        const iRoute = idx.get('Route ID');
+        const iAScan = idx.get('A-Scan WHS');
+        const iStatus = idx.get('Status at Inactivity');
+        const iTime = idx.get('Inactivity Time (UTC)');
+
+        const out = [];
+        // Start at 1 to skip header row
+        for (let r = 1; r < rows.length; r++) {
+          const row = rows[r];
+          if (!row || row.length === 0) continue;
+
+          const dest = row[iDest];
+          if (!VALID_WHS.includes(dest)) continue;
+
+          const tno = String(row[iTno] ?? '').trim();
+          if (!tno) continue;
+
+          const rawDate = row[iTime];
+          let dateObj = null;
+          if (typeof rawDate === 'number') dateObj = new Date((rawDate - 25569) * 86400 * 1000);
+          else if (typeof rawDate === 'string' && rawDate.trim()) dateObj = new Date(rawDate.replace(' ', 'T') + 'Z');
+
+          const routeId = row[iRoute];
+          const fullRouteId = String(routeId ?? '').trim();
+          const dspName = state.dspMap.get(fullRouteId) || 'N/A';
+
+          const statusVal = row[iStatus];
+          const status = (typeof statusVal === 'number') ? statusVal : (parseInt(statusVal, 10) || 0);
+
+          // Keep original columns for downstream rendering
+          const obj = {
+            'TNO': row[iTno],
+            'Dest. WHS': dest,
+            'Route ID': routeId,
+            'A-Scan WHS': row[iAScan],
+            'Status at Inactivity': statusVal,
+            'Inactivity Time (UTC)': rawDate,
+
+            _normalizedDate: dateObj,
+            _tno: tno,
+            _status: status,
+            _dspName: dspName
+          };
+          out.push(obj);
+        }
+
+        state.baseData = out;
+        state.baseDataMap = new Map();
+        for (const row of state.baseData) state.baseDataMap.set(row._tno, row);
+
+        els.step1Status.textContent = `Success: ${state.baseData.length} records loaded.`;
+        els.step1Status.className = 'mt-3 text-xs font-bold text-emerald-600';
+        els.step2Container.classList.remove('opacity-50', 'pointer-events-none');
+
+        populateDSPFilter();
+
+        state.mergedData = [];
+        state.activeAScanWhs = null;
+
+        els.dashboardView.classList.remove('hidden');
+        document.getElementById('system-status').textContent = 'Base Data Loaded';
+
+        runAnalysis();
+
+      } catch (err) {
+        alert('Error: ' + err.message);
+        els.step1Status.textContent = 'Error loading file.';
+        els.step1Status.className = 'mt-3 text-xs font-bold text-red-500';
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    // =========================
+    // STEP 2: DRIVER FILES (FAST)
+    // =========================
+
+    async function handleDriverFileUploads(e) {
+      const files = e.target.files;
+      if (!files || !files.length) return;
+
+      els.step2Status.textContent = 'Processing files...';
+      els.step2Status.className = 'mt-3 text-xs font-bold text-blue-500 animate-pulse';
+
+      await new Promise(r => setTimeout(r, 0));
+      showLoading(true, `Processing ${files.length} Driver Files...`);
+
+      try {
+        const rawDriverData = [];
+        const statusKeywords = ['status', 'event_code', 'scanned_status', 'latest status'];
+        const addressKeywords = ['address', 'street', 'dest', 'location', 'consignee'];
+
+        for (const file of files) {
+          const buf = await readFileAsArrayBuffer(file);
+          const wb = readWorkbookFromArrayBuffer(buf);
+          const sheet = wb.Sheets[wb.SheetNames[0]];
+
+          const rows = sheetToRows(sheet);
+          if (rows.length <= 1) continue;
+
+          const headers = rows[0] || [];
+          let statusIdx = -1;
+          let addressIdx = -1;
+
+          for (let i = 0; i < headers.length; i++) {
+            const h = headers[i];
+            if (!h || typeof h !== 'string') continue;
+            const hl = h.toLowerCase();
+            if (statusIdx === -1 && statusKeywords.some(kw => hl.includes(kw))) statusIdx = i;
+            if (addressIdx === -1 && addressKeywords.some(kw => hl.includes(kw))) addressIdx = i;
+            if (statusIdx !== -1 && addressIdx !== -1) break;
+          }
+
+          for (let r = 1; r < rows.length; r++) {
+            const row = rows[r];
+            if (!row || row.length === 0) continue;
+
+            const tno = row[P200_COL_TRACKING];
+            if (tno == null || String(tno).trim() === '') continue;
+
+            rawDriverData.push({
+              tno,
+              driver: row[P200_COL_DRIVER],
+              newStatus: statusIdx > -1 ? row[statusIdx] : undefined,
+              address: addressIdx > -1 ? row[addressIdx] : undefined
+            });
+          }
+        }
+
+        // MERGE LOGIC (tight loop + avoids extra allocations)
+        state.mergedData = [];
+        let matchedCount = 0;
+        let movedCount = 0;
+
+        const baseMap = state.baseDataMap;
+        if (!baseMap) throw new Error('Please load Base File first.');
+
+        for (let i = 0; i < rawDriverData.length; i++) {
+          const row = rawDriverData[i];
+          const tno = String(row.tno ?? '').trim();
+          if (!tno) continue;
+
+          const baseRow = baseMap.get(tno);
+          if (!baseRow) continue;
+
+          const driverId = String(row.driver ?? 'N/A').trim();
+
+          let newStatCode = 0;
+          if (row.newStatus != null && row.newStatus !== '') {
+            const s = String(row.newStatus);
+            const m = s.match(/^\d+/);
+            if (m) newStatCode = parseInt(m[0], 10);
+            else if (!isNaN(row.newStatus)) newStatCode = parseInt(row.newStatus, 10);
+          }
+
+          state.mergedData.push({
+            tno,
+            destWhs: baseRow['Dest. WHS'],
+            routeId: baseRow['Route ID'],
+            driverId,
+            baseStatus: baseRow._status,
+            newStatus: newStatCode,
+            aScan: baseRow['A-Scan WHS'],
+            inactivityTime: baseRow['Inactivity Time (UTC)'],
+            _normalizedDate: baseRow._normalizedDate,
+            address: row.address || 'N/A',
+            _dspName: baseRow._dspName
+          });
+
+          matchedCount++;
+          if (newStatCode > 0) movedCount++;
+        }
+
+        els.step2Status.innerHTML = `Processed. Matched ${matchedCount} TNOs.<br>Detected Status for ${movedCount} items.`;
+        els.step2Status.className = 'mt-3 text-xs font-bold text-blue-600';
+        document.getElementById('system-status').textContent = 'Update Analysis Complete';
+
+        runAnalysis();
+
+      } catch (err) {
+        console.error(err);
+        alert('Error reading driver files: ' + (err.message || String(err)));
+        els.step2Status.textContent = 'Error processing files.';
+        els.step2Status.className = 'mt-3 text-xs font-bold text-red-500';
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    // =========================
+    // ANALYSIS + RENDERING (mostly unchanged)
+    // =========================
+
+    function createTimeFilterButtons(container, section) {
+      if (container.children.length > 0) return;
+
+      const filterOptions = [
+        { label: 'All', N: null, M: null },
+        { label: '3-5 Days', N: 3, M: 5 },
+        { label: '6-7 Days', N: 6, M: 7 },
+        { label: '8-14 Days', N: 8, M: 14 }
+      ];
+
+      for (const option of filterOptions) {
+        const btn = document.createElement('button');
+        const isActive = (section === 'S1' ? state.activeTimeLabelS1 : state.activeTimeLabelS2) === option.label;
+
+        btn.className = 'px-3 py-1 rounded-full text-xs font-medium transition-colors ' +
+          (isActive ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50');
+
+        btn.textContent = option.label;
+
+        btn.onclick = () => {
+          if (section === 'S1') {
+            state.activeTimeLabelS1 = option.label;
+            state.activeTimeRangeS1 = { N: option.N, M: option.M };
+          } else {
+            state.activeTimeLabelS2 = option.label;
+            state.activeTimeRangeS2 = { N: option.N, M: option.M };
+          }
+
+          Array.from(container.children).forEach(b => {
+            b.className = 'px-3 py-1 rounded-full text-xs font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50';
+          });
+          btn.className = 'px-3 py-1 rounded-full text-xs font-medium bg-indigo-600 text-white shadow-sm';
+
+          runAnalysis();
         };
-        
-        // Derive VALID_WHS from the map keys
-        const VALID_WHS = Object.keys(WHS_ROUTE_OFFSETS);
-        
-        // Past 200 Column Config
-        const P200_COL_TRACKING = 2; // Column C
-        const P200_COL_DRIVER = 18;  // Column S
 
-        // --- State Management ---
-        let state = {
-            baseData: [],       
-            baseDataMap: null,  
-            mergedData: [],     
-            
-            // Filters
-            activeDestWhs: 'ALL', 
-            activeAScanWhs: null, 
-            
-            // Toggles
-            show195: true,
-            show199: true,
-            excludeExceptions: false, // 203, 230, 213
-            exclude99XRoutes: false, // NEW: Exclude 992/998 routes
-            excludeMainScan: false, // NEW: Exclude 3-digit Driver IDs
-            showAscanSection: true, // NEW: Toggle visibility of A-Scan section
-            
-            // Time Filters S1
-            activeTimeLabelS1: 'All',
-            activeTimeRangeS1: {min: null, max: null},
-            
-            // Time Filters S2
-            activeTimeLabelS2: 'All',
-            activeTimeRangeS2: {min: null, max: null},
+        container.appendChild(btn);
+      }
+    }
 
-            // Views
-            currentView: 'dashboard',
-            selectedDriverData: null
-        };
+    function runAnalysis() {
+      if (!state.baseData.length) return;
 
-        // --- DOM Elements ---
-        const els = {
-            loader: document.getElementById('loading-overlay'),
-            loadText: document.getElementById('loading-text'),
-            
-            // Views
-            dashboardView: document.getElementById('dashboard-view'),
-            driverDetailView: document.getElementById('driver-detail-view'),
+      const refDate = new Date(els.refDate.value + 'T00:00:00Z');
 
-            // Uploads
-            step1Status: document.getElementById('status-step1'),
-            step2Container: document.getElementById('step2-container'),
-            step2Status: document.getElementById('status-step2'),
-            
-            // Controls
-            whsSelect: document.getElementById('whs-filter'),
-            refDate: document.getElementById('reference-date'),
-            driverSearch: document.getElementById('driver-search'),
-            
-            // New Toggles
-            toggle195: document.getElementById('toggle-195'),
-            toggle199: document.getElementById('toggle-199'),
-            toggleExclude: document.getElementById('toggle-exclude-exceptions'),
-            toggleExclude99X: document.getElementById('toggle-exclude-99x'), 
-            toggleAscanSection: document.getElementById('toggle-ascan-section'), // NEW
-            toggleExcludeMain: document.getElementById('toggle-exclude-main'), // NEW
-
-            // New Section: Base Moved
-            baseMovedSection: document.getElementById('base-moved-section'),
-            baseMovedCount: document.getElementById('base-moved-count'),
-            copyBaseMoved: document.getElementById('copy-base-moved'),
-
-            // Section 1
-            ascanAnalysisSection: document.getElementById('ascan-analysis-section'), // NEW ID
-            ascanGrid: document.getElementById('ascan-grid'),
-            copyS1: document.getElementById('copy-s1'),
-            s1Count: document.getElementById('s1-count'),
-            s1Title: document.getElementById('s1-copy-title'),
-            timeFiltersS1: document.getElementById('time-filters-s1'), 
-            
-            // Section 2
-            driverSection: document.getElementById('driver-section'),
-            driverTableBody: document.getElementById('driver-table-body'),
-            timeFiltersS2: document.getElementById('time-filters-s2'), 
-
-            // Detail View
-            detailDriverId: document.getElementById('detail-driver-id'),
-            detailMeta: document.getElementById('detail-driver-meta'),
-            detailVol: document.getElementById('detail-total-vol'),
-            detailBody: document.getElementById('detail-table-body'),
-            detailCopy: document.getElementById('detail-copy-container')
-        };
-
-        // --- Initialization ---
-        document.addEventListener('DOMContentLoaded', () => {
-            // Initialize Icons
-            lucide.createIcons();
-            
-            // Set default date
-            els.refDate.valueAsDate = new Date();
-            
-            // Listeners
-            document.getElementById('file1').addEventListener('change', handleBaseFileUpload);
-            document.getElementById('file2').addEventListener('change', handleDriverFileUploads);
-            
-            els.whsSelect.addEventListener('change', (e) => {
-                state.activeDestWhs = e.target.value;
-                state.activeAScanWhs = null;
-                runAnalysis();
-            });
-            
-            // Reference Date change listener now triggers analysis
-            els.refDate.addEventListener('change', () => runAnalysis()); 
-            
-            els.driverSearch.addEventListener('input', (e) => {
-                renderDriverTable(e.target.value);
-            });
-
-            // Toggle Listeners
-            els.toggle195.addEventListener('change', (e) => {
-                state.show195 = e.target.checked;
-                runAnalysis();
-            });
-            els.toggle199.addEventListener('change', (e) => {
-                state.show199 = e.target.checked;
-                runAnalysis();
-            });
-            els.toggleExclude.addEventListener('change', (e) => {
-                state.excludeExceptions = e.target.checked;
-                runAnalysis();
-            });
-            els.toggleExclude99X.addEventListener('change', (e) => { // NEW Listener
-                state.exclude99XRoutes = e.target.checked;
-                runAnalysis();
-            });
-            els.toggleExcludeMain.addEventListener('change', (e) => { // NEW Listener
-                state.excludeMainScan = e.target.checked;
-                runAnalysis();
-            });
-            els.toggleAscanSection.addEventListener('change', (e) => { // A-Scan Toggle
-                state.showAscanSection = e.target.checked;
-                // Only need to run render, not full analysis
-                els.ascanAnalysisSection.classList.toggle('hidden', !state.showAscanSection);
-            });
-            
-            // Initialize time filter buttons
-            createTimeFilterButtons(els.timeFiltersS1, 'S1');
-            createTimeFilterButtons(els.timeFiltersS2, 'S2');
+      // 0) Base moved
+      if (state.mergedData.length > 0) {
+        els.baseMovedSection.classList.add('hidden');
+      } else {
+        const movedBase = state.baseData.filter(row => {
+          const whsMatch = state.activeDestWhs === 'ALL' || row['Dest. WHS'] === state.activeDestWhs;
+          const statusCheck = row._status > 200 && row._status !== 255;
+          const dspMatch = state.activeDSP === 'ALL' || row._dspName === state.activeDSP;
+          return whsMatch && statusCheck && dspMatch;
         });
-        
-        /**
-         * Converts Excel's date serial number to a short date string (M/D/YYYY).
-         * Handles both date-only (integer) and date-time (float) formats.
-         * @param {number|string} serial - Excel date serial number (e.g., 45991.74253472222)
-         * @returns {string} Formatted date string (e.g., 12/6/2025)
-         */
-        function excelSerialToShortDate(serial) {
-            if (typeof serial !== 'number' || serial <= 0) {
-                return String(serial); // Return raw string if not a valid number
-            }
+        renderBaseMoved(movedBase);
+      }
 
-            // Excel base date is 1900-01-01 (or 1904-01-01 for Mac, but 1900 is standard)
-            // 25569 is the serial number for 1970-01-01.
-            const date = new Date(Math.round((serial - 25569) * 86400 * 1000));
-            
-            // If the date parsing fails, use the number-based calculation for the date component
-            if (isNaN(date.getTime())) {
-                const datePart = Math.floor(serial);
-                const msSinceEpoch = (datePart - 25569) * 86400 * 1000;
-                const d = new Date(msSinceEpoch);
-                return d.toLocaleDateString('en-US', { timeZone: 'UTC' });
-            }
+      els.ascanAnalysisSection.classList.toggle('hidden', !state.showAscanSection);
 
-            return date.toLocaleDateString('en-US', { timeZone: 'UTC' });
+      // 1) Section 1
+      const timeRangeS1 = state.activeTimeRangeS1;
+      const s1Base = state.baseData.filter(row => {
+        const whsMatch = state.activeDestWhs === 'ALL' || row['Dest. WHS'] === state.activeDestWhs;
+        const dspMatch = state.activeDSP === 'ALL' || row._dspName === state.activeDSP;
+
+        let statusMatch = false;
+        if (state.show195 && row._status === 195) statusMatch = true;
+        if (state.show199 && row._status === 199) statusMatch = true;
+
+        let timeMatch = true;
+        if (timeRangeS1.N !== null && row._normalizedDate) {
+          const daysAgo = getDaysDifference(refDate, row._normalizedDate);
+          timeMatch = daysAgo >= timeRangeS1.N && daysAgo <= timeRangeS1.M;
         }
 
+        return whsMatch && dspMatch && statusMatch && timeMatch;
+      });
+      renderSection1(s1Base);
 
-        /**
-         * Creates the time filter buttons and sets up their click handlers.
-         * @param {HTMLElement} container - The DOM element to attach buttons to.
-         * @param {string} section - 'S1' or 'S2' to determine which state variables to update.
-         */
-        function createTimeFilterButtons(container, section) {
-            if (container.children.length > 0) return; // Prevent re-initialization
+      // 2) Section 2
+      if (state.mergedData.length) {
+        els.driverSection.classList.remove('hidden');
 
-            const filterOptions = [
-                { label: "All", min: null, max: null },
-                { label: "3-5 Days", min: 3, max: 6 },
-                { label: "6-7 Days", min: 6, max: 8 },
-                { label: "7-14 Days", min: 7, max: 15 }
-            ];
+        const timeRangeS2 = state.activeTimeRangeS2;
 
-            filterOptions.forEach(option => {
-                const btn = document.createElement('button');
-                
-                const isActive = (section === 'S1' ? state.activeTimeLabelS1 : state.activeTimeLabelS2) === option.label;
-                
-                btn.className = "px-3 py-1 rounded-full text-xs font-medium transition-colors " + 
-                    (isActive ? "bg-indigo-600 text-white shadow-sm" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50");
-                
-                btn.textContent = option.label;
-                
-                btn.onclick = () => {
-                    // Update State
-                    if (section === 'S1') {
-                        state.activeTimeLabelS1 = option.label;
-                        state.activeTimeRangeS1 = {min: option.min, max: option.max};
-                    } else {
-                        state.activeTimeLabelS2 = option.label;
-                        state.activeTimeRangeS2 = {min: option.min, max: option.max};
-                    }
-                    
-                    // Update Visuals
-                    Array.from(container.children).forEach(b => {
-                        b.className = "px-3 py-1 rounded-full text-xs font-medium bg-white border border-slate-200 text-slate-600 hover:bg-slate-50";
-                    });
-                    btn.className = "px-3 py-1 rounded-full text-xs font-medium bg-indigo-600 text-white shadow-sm";
-                    
-                    runAnalysis();
-                };
-                container.appendChild(btn);
-            });
+        const s2Base = state.mergedData.filter(row => {
+          const whsMatch = state.activeDestWhs === 'ALL' || row.destWhs === state.activeDestWhs;
+          const dspMatch = state.activeDSP === 'ALL' || row._dspName === state.activeDSP;
+
+          let timeMatch = true;
+          if (timeRangeS2.N !== null && row._normalizedDate) {
+            const daysAgo = getDaysDifference(refDate, row._normalizedDate);
+            timeMatch = daysAgo >= timeRangeS2.N && daysAgo <= timeRangeS2.M;
+          }
+
+          const effectiveStatus = row.newStatus > 0 ? row.newStatus : row.baseStatus;
+          const statusCheck = effectiveStatus > 200 && effectiveStatus !== 255;
+
+          let exclusionPass = true;
+          if (state.excludeExceptions && (effectiveStatus === 203 || effectiveStatus === 230 || effectiveStatus === 213)) exclusionPass = false;
+
+          if (exclusionPass && state.exclude99XRoutes) {
+            const driverIdString = String(row.driverId);
+            if (driverIdString.endsWith('992') || driverIdString.endsWith('998')) exclusionPass = false;
+          }
+
+          if (exclusionPass && state.excludeMainScan) {
+            const driverIdString = String(row.driverId).trim();
+            if (driverIdString.length === 3 && !isNaN(parseInt(driverIdString, 10))) exclusionPass = false;
+          }
+
+          return whsMatch && dspMatch && statusCheck && exclusionPass && timeMatch;
+        });
+
+        processDriverData(s2Base);
+      } else {
+        els.driverSection.classList.add('hidden');
+      }
+    }
+
+    function renderBaseMoved(data) {
+      els.baseMovedCount.textContent = data.length;
+      if (data.length > 0) {
+        els.baseMovedSection.classList.remove('hidden');
+        setupCopyButtons(data.map(r => r._tno), 'copy-base-moved', true);
+      } else {
+        els.baseMovedSection.classList.add('hidden');
+      }
+    }
+
+    function renderSection1(data) {
+      const counts = {};
+      for (const r of data) {
+        const k = r['A-Scan WHS'] || 'Unknown';
+        counts[k] = (counts[k] || 0) + 1;
+      }
+
+      els.ascanGrid.innerHTML = '';
+
+      const allCard = createAScanCard('ALL', data.length, state.activeAScanWhs === null);
+      allCard.onclick = () => { state.activeAScanWhs = null; runAnalysis(); };
+      els.ascanGrid.appendChild(allCard);
+
+      // FIXED: sort comparator typo in original (b[1] - b[1])
+      Object.entries(counts).sort((a, b) => b[1] - a[1]).forEach(([whs, count]) => {
+        const isActive = state.activeAScanWhs === whs;
+        const card = createAScanCard(whs, count, isActive);
+        card.onclick = () => { state.activeAScanWhs = isActive ? null : whs; runAnalysis(); };
+        els.ascanGrid.appendChild(card);
+      });
+
+      const finalCopyData = state.activeAScanWhs
+        ? data.filter(r => (r['A-Scan WHS'] || 'Unknown') === state.activeAScanWhs)
+        : data;
+
+      els.s1Count.textContent = `${finalCopyData.length} items`;
+      els.s1Title.textContent = state.activeAScanWhs ? `TNO Copy List (Filter: ${state.activeAScanWhs})` : 'TNO Copy List (All)';
+      setupCopyButtons(finalCopyData.map(r => r._tno), 'copy-s1');
+    }
+
+    function createAScanCard(title, count, isActive) {
+      const div = document.createElement('button');
+      div.className = `relative text-left p-4 rounded-xl border transition-all duration-200 group w-full ${
+        isActive ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200 scale-[1.02]' : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md'
+      }`;
+      div.innerHTML = `
+        <div class="flex justify-between items-start mb-2">
+          <div class="text-xs font-bold uppercase tracking-wider ${isActive ? 'text-indigo-200' : 'text-slate-500'}">${title === 'ALL' ? 'Total' : 'WHS'}</div>
+          ${isActive ? '<i data-lucide="check-circle-2" class="w-4 h-4 text-white"></i>' : '<i data-lucide="map-pin" class="w-4 h-4 text-slate-300"></i>'}
+        </div>
+        <div class="text-lg font-bold truncate ${isActive ? 'text-white' : 'text-slate-900'}">${title}</div>
+        <div class="mt-2 text-2xl font-bold ${isActive ? 'text-white' : 'text-indigo-600'}">${count}</div>
+      `;
+      return div;
+    }
+
+    // --- Section 2 ---
+    let cachedDriverData = [];
+
+    function processDriverData(data) {
+      const drivers = {};
+      const disposition = { onRoutes: [], mainScan: [], heldByDrivers: [] };
+
+      for (const row of data) {
+        const d = row.driverId;
+        const driverIdString = String(row.driverId).trim();
+        const isRouteDriver = driverIdString.length === 6 && !isNaN(parseInt(driverIdString, 10)) && driverIdString.endsWith('00' + driverIdString.slice(-2));
+        const isMainScan = driverIdString.length === 3 && !isNaN(parseInt(driverIdString, 10));
+
+        if (isRouteDriver) disposition.onRoutes.push({ tno: row.tno, driver: d });
+        else if (isMainScan) disposition.mainScan.push({ tno: row.tno, driver: d });
+        else disposition.heldByDrivers.push({ tno: row.tno, driver: d });
+
+        if (!drivers[d]) {
+          drivers[d] = { id: d, count: 0, routes: new Set(), whs: row.destWhs, packages: [], dsp: row._dspName || 'N/A' };
         }
 
-        // --- View Switching ---
-        function switchView(viewName) {
-            state.currentView = viewName;
-            if(viewName === 'dashboard') {
-                els.dashboardView.classList.remove('hidden');
-                els.driverDetailView.classList.add('hidden');
-                
-                // Scroll to the Driver Analysis section (Section 2)
-                const driverSection = document.getElementById('driver-section');
-                if (driverSection) {
-                    const navBarHeight = 64; 
-                    const offset = driverSection.offsetTop - navBarHeight;
-                    window.scrollTo({
-                        top: offset,
-                        behavior: 'smooth'
-                    });
-                } else {
-                     window.scrollTo(0, 0); 
-                }
+        drivers[d].count++;
+        drivers[d].packages.push(row);
 
-                // Ensure A-Scan visibility is respected on return
-                els.ascanAnalysisSection.classList.toggle('hidden', !state.showAscanSection);
+        const currentOffset = WHS_ROUTE_OFFSETS[row.destWhs] || 0;
+        const rId = parseInt(row.routeId, 10);
+        if (!isNaN(rId) && currentOffset > 0 && rId > currentOffset) drivers[d].routes.add(rId - currentOffset);
+        else if (!isNaN(rId)) drivers[d].routes.add(rId);
+      }
 
-                setTimeout(() => lucide.createIcons(), 50);
-            } else if(viewName === 'detail') {
-                els.dashboardView.classList.add('hidden');
-                els.driverDetailView.classList.remove('hidden');
-                // Force scroll to top of the fixed header on view switch
-                window.scrollTo(0, 0); 
-                setTimeout(() => lucide.createIcons(), 50);
-            }
-        }
+      renderDispositionSummary(disposition);
+      cachedDriverData = Object.values(drivers).sort((a, b) => b.count - a.count);
+      renderDriverTable();
+    }
 
-        // --- Step 1: Base File Processing ---
-        function handleBaseFileUpload(e) {
-            const file = e.target.files[0];
-            if(!file) return;
+    function renderDispositionSummary(disposition) {
+      const container = els.dispositionContainer;
+      container.innerHTML = '<h3 class="text-base font-bold text-slate-800">Disposition Summary</h3>';
 
-            // Feedback: Update status text immediately
-            els.step1Status.textContent = "Processing Base File...";
-            els.step1Status.className = "mt-3 text-xs font-bold text-indigo-500 animate-pulse";
+      const grid = document.createElement('div');
+      grid.className = 'grid grid-cols-1 md:grid-cols-3 gap-4';
+      grid.id = 'disposition-grid';
 
-            // Wrap in setTimeout to allow UI repaint
-            setTimeout(() => {
-                const reader = new FileReader();
-                reader.onload = function(evt) {
-                    try {
-                        const data = new Uint8Array(evt.target.result);
-                        const workbook = XLSX.read(data, {type: 'array'});
-                        const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-                        
-                        if(!json.length) throw new Error("File empty");
-                        const keys = Object.keys(json[0]);
-                        
-                        // Check headers
-                        const missing = REQUIRED_BASE_HEADERS.filter(h => !keys.includes(h));
-                        if(missing.length) throw new Error(`Missing headers: ${missing.join(', ')}`);
+      const cards = [
+        { title: 'On Routes', data: disposition.onRoutes, color: 'emerald' },
+        { title: 'Main Scan', data: disposition.mainScan, color: 'indigo' },
+        { title: 'Held by Drivers', data: disposition.heldByDrivers, color: 'orange' }
+      ];
 
-                        // Parse Data
-                        state.baseData = json.filter(row => VALID_WHS.includes(row['Dest. WHS'])).map(row => {
-                            let dateObj = null;
-                            const rawDate = row['Inactivity Time (UTC)'];
-                            if(typeof rawDate === 'number') dateObj = new Date((rawDate - 25569) * 86400 * 1000);
-                            else if(typeof rawDate === 'string') dateObj = new Date(rawDate.replace(' ', 'T') + 'Z');
+      const colorMap = {
+        emerald: 'bg-emerald-50 border-emerald-300 text-emerald-800',
+        indigo: 'bg-indigo-50 border-indigo-300 text-indigo-800',
+        orange: 'bg-orange-50 border-orange-300 text-orange-800'
+      };
 
-                            return {
-                                ...row,
-                                _normalizedDate: dateObj,
-                                _tno: String(row['TNO']).trim(),
-                                _status: parseInt(row['Status at Inactivity']) || 0
-                            };
-                        });
+      cards.forEach((card, index) => {
+        const colors = colorMap[card.color];
+        const count = card.data.length;
+        const id = `dispo-card-${index}`;
+        const tnos = card.data.map(item => item.tno).join('\n');
 
-                        state.baseDataMap = new Map();
-                        state.baseData.forEach(row => state.baseDataMap.set(row._tno, row));
+        grid.innerHTML += `
+          <div class="rounded-xl border ${colors} overflow-hidden shadow-sm">
+            <div id="${id}-header" class="collapse-header p-4 flex justify-between items-center bg-white/70 hover:bg-white transition-colors">
+              <div>
+                <div class="text-sm font-semibold">${card.title}</div>
+                <div class="text-2xl font-bold">${count.toLocaleString()}</div>
+              </div>
+              <i id="${id}-icon" data-lucide="chevron-down" class="w-5 h-5 transition-transform"></i>
+            </div>
+            <div id="${id}-content" class="collapse-content bg-white p-4">
+              <div class="flex justify-end mb-2">
+                ${count > 0 ? `<button data-tnos="${tnos}" class="copy-tno-btn text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1"><i data-lucide="copy" class="w-3 h-3"></i> Copy TNOs (${count})</button>` : ''}
+              </div>
+              <table class="min-w-full text-xs">
+                <thead class="text-slate-500 border-b"><tr><th class="py-2 text-left">Tracking ID</th><th class="py-2 text-left">Driver ID</th></tr></thead>
+                <tbody class="divide-y divide-slate-100">
+                  ${card.data.map(item => `<tr><td class="py-1 font-mono">${item.tno}</td><td class="py-1">${item.driver}</td></tr>`).join('')}
+                </tbody>
+              </table>
+              ${count === 0 ? '<p class="text-center text-slate-500 py-3">No packages found in this category.</p>' : ''}
+            </div>
+          </div>
+        `;
+      });
 
-                        // UI Updates
-                        els.step1Status.textContent = `Success: ${state.baseData.length} records loaded.`;
-                        els.step1Status.className = "mt-3 text-xs font-bold text-emerald-600";
-                        els.step2Container.classList.remove('opacity-50', 'pointer-events-none');
-                        
-                        populateWHSFilter();
-                        
-                        state.mergedData = [];
-                        state.activeAScanWhs = null;
-                        
-                        els.dashboardView.classList.remove('hidden');
-                        document.getElementById('system-status').textContent = "Base Data Loaded";
-                        
-                        runAnalysis();
+      container.appendChild(grid);
+      lucide.createIcons();
 
-                    } catch(err) {
-                        alert("Error: " + err.message);
-                        els.step1Status.textContent = "Error loading file.";
-                        els.step1Status.className = "mt-3 text-xs font-bold text-red-500";
-                    }
-                };
-                reader.readAsArrayBuffer(file);
-            }, 50); // Small delay to render UI
-        }
+      cards.forEach((card, index) => {
+        const header = document.getElementById(`dispo-card-${index}-header`);
+        header.onclick = () => {
+          const content = document.getElementById(`dispo-card-${index}-content`);
+          const icon = document.getElementById(`dispo-card-${index}-icon`);
+          const isExpanded = content.classList.contains('expanded');
 
-        // --- Step 2: Driver Files Processing ---
-        async function handleDriverFileUploads(e) {
-            const files = e.target.files;
-            if(!files.length) return;
+          document.querySelectorAll('#disposition-grid .collapse-content.expanded').forEach(otherContent => {
+            otherContent.classList.remove('expanded');
+            const otherIcon = document.getElementById(otherContent.id.replace('-content', '-icon'));
+            if (otherIcon) otherIcon.style.transform = 'rotate(0deg)';
+          });
 
-            // Feedback: Update status text immediately
-            els.step2Status.textContent = "Processing files...";
-            els.step2Status.className = "mt-3 text-xs font-bold text-blue-500 animate-pulse";
+          if (!isExpanded) {
+            content.classList.add('expanded');
+            icon.style.transform = 'rotate(180deg)';
+          }
+        };
+      });
 
-            // Use setTimeout for UI responsiveness
-            setTimeout(async () => {
-                showLoading(true, `Processing ${files.length} Driver Files...`);
-                let rawDriverData = [];
-                
-                try {
-                    for(let file of files) {
-                        await new Promise((resolve) => {
-                            const reader = new FileReader();
-                            reader.onload = (evt) => {
-                                const wb = XLSX.read(evt.target.result, {type: 'binary'});
-                                const sheet = wb.Sheets[wb.SheetNames[0]];
-                                const headers = XLSX.utils.sheet_to_json(sheet, {header:1})[0] || [];
-                                
-                                let statusIdx = -1;
-                                const statusKeywords = ['status', 'event_code', 'scanned_status', 'latest status'];
-                                let addressIdx = -1;
-                                const addressKeywords = ['address', 'street', 'dest', 'location', 'consignee'];
-                                
-                                headers.forEach((h, idx) => {
-                                    if(h && typeof h === 'string') {
-                                        const hLower = h.toLowerCase();
-                                        if(statusKeywords.some(kw => hLower.includes(kw))) statusIdx = idx;
-                                        if(addressKeywords.some(kw => hLower.includes(kw))) addressIdx = idx;
-                                    }
-                                });
-
-                                const data = XLSX.utils.sheet_to_json(sheet, {header:1});
-                                if(data.length > 1) {
-                                    const rows = data.slice(1).map(r => ({
-                                        tno: r[P200_COL_TRACKING],
-                                        driver: r[P200_COL_DRIVER],
-                                        newStatus: statusIdx > -1 ? r[statusIdx] : undefined,
-                                        address: addressIdx > -1 ? r[addressIdx] : undefined
-                                    }));
-                                    rawDriverData.push(...rows);
-                                }
-                                resolve();
-                            };
-                            reader.readAsBinaryString(file);
-                        });
-                    }
-
-                    // MERGE LOGIC
-                    state.mergedData = [];
-                    let matchedCount = 0;
-                    let movedCount = 0;
-
-                    rawDriverData.forEach(row => {
-                        const tno = String(row.tno || '').trim();
-                        const driverId = String(row.driver || 'N/A').trim();
-                        
-                        let newStatCode = 0;
-                        if(row.newStatus) {
-                            const match = String(row.newStatus).match(/^\d+/);
-                            if(match) newStatCode = parseInt(match[0]);
-                            else if(!isNaN(row.newStatus)) newStatCode = parseInt(row.newStatus);
-                        }
-
-                        if(tno && state.baseDataMap && state.baseDataMap.has(tno)) {
-                            const baseRow = state.baseDataMap.get(tno);
-                            
-                            state.mergedData.push({
-                                tno: tno,
-                                destWhs: baseRow['Dest. WHS'],
-                                routeId: baseRow['Route ID'],
-                                driverId: driverId,
-                                baseStatus: baseRow._status, 
-                                newStatus: newStatCode,
-                                aScan: baseRow['A-Scan WHS'],
-                                inactivityTime: baseRow['Inactivity Time (UTC)'],
-                                _normalizedDate: baseRow._normalizedDate,
-                                address: row.address || 'N/A'
-                            });
-                            matchedCount++;
-                            if(newStatCode > 0) movedCount++;
-                        }
-                    });
-
-                    els.step2Status.innerHTML = `Processed. Matched ${matchedCount} TNOs.<br>Detected Status for ${movedCount} items.`;
-                    els.step2Status.className = "mt-3 text-xs font-bold text-blue-600";
-                    document.getElementById('system-status').textContent = "Update Analysis Complete";
-                    
-                    runAnalysis();
-
-                } catch(err) {
-                    console.error(err);
-                    alert("Error reading driver files.");
-                    els.step2Status.textContent = "Error processing files.";
-                    els.step2Status.className = "mt-3 text-xs font-bold text-red-500";
-                } finally {
-                    showLoading(false);
-                }
-            }, 50);
-        }
-
-        // --- Core Analysis Logic ---
-        function runAnalysis() {
-            if(!state.baseData.length) return;
-
-            const refDate = new Date(els.refDate.value + 'T00:00:00Z');
-            const msDay = 86400000;
-            
-            // --- 0. Pre-Check: Base File Already Moved ---
-            if (state.mergedData.length > 0) {
-                els.baseMovedSection.classList.add('hidden');
-            } else {
-                const movedBase = state.baseData.filter(row => {
-                    const whsMatch = state.activeDestWhs === 'ALL' || row['Dest. WHS'] === state.activeDestWhs;
-                    const statusCheck = row._status > 200 && row._status !== 255;
-                    return whsMatch && statusCheck;
-                });
-                renderBaseMoved(movedBase);
-            }
-            
-            // --- Toggle A-Scan Section Visibility ---
-            els.ascanAnalysisSection.classList.toggle('hidden', !state.showAscanSection);
-
-            // --- 1. Section 1: Inactivity (195/199) ---
-            const timeRangeS1 = state.activeTimeRangeS1;
-            const s1Base = state.baseData.filter(row => {
-                const whsMatch = state.activeDestWhs === 'ALL' || row['Dest. WHS'] === state.activeDestWhs;
-                
-                let statusMatch = false;
-                if(state.show195 && row._status === 195) statusMatch = true;
-                if(state.show199 && row._status === 199) statusMatch = true;
-                
-                let timeMatch = true;
-                if(timeRangeS1.min !== null && row._normalizedDate) {
-                    const t = row._normalizedDate.getTime();
-                    const minTime = refDate.getTime() - (timeRangeS1.max * msDay);
-                    const maxTime = refDate.getTime() - (timeRangeS1.min * msDay);
-                    timeMatch = t > minTime && t <= maxTime;
-                }
-                return whsMatch && statusMatch && timeMatch;
-            });
-            renderSection1(s1Base);
-
-            // --- 2. Section 2: Merged Driver Analysis ---
-            if(state.mergedData.length) {
-                els.driverSection.classList.remove('hidden');
-                
-                const timeRangeS2 = state.activeTimeRangeS2;
-                
-                const s2Base = state.mergedData.filter(row => {
-                    const whsMatch = state.activeDestWhs === 'ALL' || row.destWhs === state.activeDestWhs;
-                    
-                    // Time filter against original inactivity date
-                    let timeMatch = true;
-                    if(timeRangeS2.min !== null && row._normalizedDate) {
-                        const t = row._normalizedDate.getTime();
-                        const minTime = refDate.getTime() - (timeRangeS2.max * msDay);
-                        const maxTime = refDate.getTime() - (timeRangeS2.min * msDay);
-                        timeMatch = t > minTime && t <= maxTime;
-                    }
-                    
-                    const effectiveStatus = row.newStatus > 0 ? row.newStatus : row.baseStatus;
-                    const statusCheck = effectiveStatus > 200 && effectiveStatus !== 255;
-                    
-                    let exclusionPass = true;
-                    
-                    // Exclusion Logic 1: 203, 230, 213
-                    if(state.excludeExceptions) {
-                        if(effectiveStatus === 203 || effectiveStatus === 230 || effectiveStatus === 213) {
-                            exclusionPass = false;
-                        }
-                    }
-                    
-                    // Exclusion Logic 2: 992/998 Routes (Checking Driver ID)
-                    if(exclusionPass && state.exclude99XRoutes) {
-                        const driverIdString = String(row.driverId); 
-                        if (driverIdString.endsWith('992') || driverIdString.endsWith('998')) {
-                            exclusionPass = false;
-                        }
-                    }
-                    
-                    // Exclusion Logic 3: Main Scan (3-digit Driver IDs)
-                    if(exclusionPass && state.excludeMainScan) {
-                        const driverIdString = String(row.driverId).trim();
-                        // Strictly check if Driver ID is exactly 3 characters long
-                        if (driverIdString.length === 3) {
-                            exclusionPass = false;
-                        }
-                    }
-
-
-                    return whsMatch && statusCheck && exclusionPass && timeMatch;
-                });
-                
-                processDriverData(s2Base);
-            } else {
-                els.driverSection.classList.add('hidden');
-            }
-        }
-
-        function renderBaseMoved(data) {
-            els.baseMovedCount.textContent = data.length;
-            
-            if(data.length > 0) {
-                els.baseMovedSection.classList.remove('hidden');
-                setupCopyButtons(data.map(r => r._tno), 'copy-base-moved', true);
-            } else {
-                els.baseMovedSection.classList.add('hidden');
-            }
-        }
-
-        // --- SECTION 1 RENDER (A-Scan Cards) ---
-        function renderSection1(data) {
-            // Group by A-Scan WHS
-            const counts = {};
-            data.forEach(r => {
-                const k = r['A-Scan WHS'] || 'Unknown';
-                counts[k] = (counts[k] || 0) + 1;
-            });
-
-            els.ascanGrid.innerHTML = '';
-            
-            // "All" Card
-            const allCard = createAScanCard('ALL', data.length, state.activeAScanWhs === null);
-            allCard.onclick = () => { state.activeAScanWhs = null; runAnalysis(); };
-            els.ascanGrid.appendChild(allCard);
-
-            Object.entries(counts).sort((a,b) => b[1] - a[1]).forEach(([whs, count]) => {
-                const isActive = state.activeAScanWhs === whs;
-                const card = createAScanCard(whs, count, isActive);
-                card.onclick = () => { 
-                    state.activeAScanWhs = isActive ? null : whs; 
-                    runAnalysis(); 
-                };
-                els.ascanGrid.appendChild(card);
-            });
-
-            // Update Copy List
-            const finalCopyData = state.activeAScanWhs 
-                ? data.filter(r => (r['A-Scan WHS'] || 'Unknown') === state.activeAScanWhs)
-                : data;
-            
-            els.s1Count.textContent = `${finalCopyData.length} items`;
-            els.s1Title.textContent = state.activeAScanWhs 
-                ? `TNO Copy List (Filter: ${state.activeAScanWhs})`
-                : `TNO Copy List (All)`;
-                
-            setupCopyButtons(finalCopyData.map(r => r._tno), 'copy-s1');
-        }
-
-        function createAScanCard(title, count, isActive) {
-            const div = document.createElement('button');
-            div.className = `relative text-left p-4 rounded-xl border transition-all duration-200 group w-full ${
-                isActive 
-                ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200 scale-[1.02]' 
-                : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md'
-            }`;
-            div.innerHTML = `
-                <div class="flex justify-between items-start mb-2">
-                    <div class="text-xs font-bold uppercase tracking-wider ${isActive ? 'text-indigo-200' : 'text-slate-500'}">${title === 'ALL' ? 'Total' : 'WHS'}</div>
-                    ${isActive ? '<i data-lucide="check-circle-2" class="w-4 h-4 text-white"></i>' : '<i data-lucide="map-pin" class="w-4 h-4 text-slate-300"></i>'}
-                </div>
-                <div class="text-lg font-bold truncate ${isActive ? 'text-white' : 'text-slate-900'}">${title}</div>
-                <div class="mt-2 text-2xl font-bold ${isActive ? 'text-white' : 'text-indigo-600'}">${count}</div>
-            `;
-            return div;
-        }
-
-        // --- SECTION 2 RENDER (Drivers) ---
-        let cachedDriverData = []; 
-
-        function processDriverData(data) {
-            const drivers = {};
-            data.forEach(row => {
-                const d = row.driverId;
-                if(!drivers[d]) drivers[d] = { 
-                    id: d, 
-                    count: 0, 
-                    routes: new Set(), 
-                    whs: row.destWhs,
-                    packages: [] 
-                };
-                
-                drivers[d].count++;
-                drivers[d].packages.push(row);
-                
-                // --- DYNAMIC OFFSET IMPLEMENTATION ---
-                const currentOffset = WHS_ROUTE_OFFSETS[row.destWhs] || 0; 
-                const rId = parseInt(row.routeId);
-                
-                // Only calculate derived route if a valid offset and route ID exists
-                if (!isNaN(rId) && currentOffset > 0 && rId > currentOffset) {
-                    drivers[d].routes.add(rId - currentOffset);
-                } else if (!isNaN(rId)) {
-                    // Fallback to showing the raw route ID if offset is unknown or zero
-                    drivers[d].routes.add(rId);
-                }
-            });
-
-            cachedDriverData = Object.values(drivers).sort((a,b) => b.count - a.count);
-            renderDriverTable();
-        }
-
-        function renderDriverTable(searchTerm = "") {
-            els.driverTableBody.innerHTML = '';
-            
-            const term = searchTerm.toLowerCase();
-            const filtered = cachedDriverData.filter(d => 
-                d.id.toLowerCase().includes(term)
-            );
-
-            if(filtered.length === 0) {
-                els.driverTableBody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-400">No matching drivers/packages found. <br><span class="text-xs">Try uploading more driver files or check Status columns.</span></td></tr>';
-                return;
-            }
-
-            filtered.forEach(d => {
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-50 transition-colors cursor-pointer group border-b border-slate-50";
-                tr.onclick = () => openDriverDetail(d);
-
-                const routeStr = Array.from(d.routes).sort((a,b)=>a-b).join(', ') || '-';
-                
-                tr.innerHTML = `
-                    <td class="px-6 py-4 font-mono text-blue-600 font-medium group-hover:underline">${d.id}</td>
-                    <td class="px-6 py-4 text-slate-600 text-xs max-w-xs truncate" title="${routeStr}">${routeStr}</td>
-                    <td class="px-6 py-4 text-slate-600">${d.whs || '-'}</td>
-                    <td class="px-6 py-4 text-right font-bold text-slate-900">${d.count}</td>
-                    <td class="px-6 py-4 text-right">
-                        <i data-lucide="chevron-right" class="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors inline-block"></i>
-                    </td>
-                `;
-                els.driverTableBody.appendChild(tr);
-            });
-            
+      document.querySelectorAll('.copy-tno-btn').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const tnos = btn.getAttribute('data-tnos');
+          navigator.clipboard.writeText(tnos).then(() => {
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="check" class="w-3 h-3"></i> Copied!`;
             lucide.createIcons();
-        }
+            setTimeout(() => { btn.innerHTML = originalText; lucide.createIcons(); }, 2000);
+          });
+        };
+      });
+    }
 
-        // --- DRIVER DETAIL VIEW LOGIC ---
-        function openDriverDetail(driverData) {
-            state.selectedDriverData = driverData;
-            
-            // Header Info
-            els.detailDriverId.innerHTML = `<i data-lucide="truck" class="w-6 h-6 text-blue-600"></i> ${driverData.id}`;
-            
-            // Fix: Routes Display (Joined Route IDs) - Use base Route ID here
-            const routeStr = Array.from(driverData.routes).sort((a,b)=>a-b).join(', ') || 'N/A';
-            els.detailMeta.innerHTML = `
-                <span class="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded text-slate-600"><i data-lucide="map-pin" class="w-3 h-3"></i> ${driverData.whs}</span>
-                <span class="flex items-center gap-1 text-slate-500 font-medium">Route ID: ${routeStr}</span>
-            `;
-            els.detailVol.textContent = driverData.count;
+    function renderDriverTable(searchTerm = '') {
+      els.driverTableBody.innerHTML = '';
 
-            const tnos = driverData.packages.map(p => p.tno);
-            els.detailCopy.innerHTML = '';
-            
-            const copyBtn = document.createElement('button');
-            copyBtn.className = "text-sm text-blue-600 font-medium hover:text-blue-800 flex items-center gap-1";
-            copyBtn.innerHTML = `<i data-lucide="copy" class="w-4 h-4"></i> Copy TNOs`;
-            copyBtn.onclick = () => {
-                navigator.clipboard.writeText(tnos.join('\n'));
-                copyBtn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Copied!`;
-                setTimeout(() => copyBtn.innerHTML = `<i data-lucide="copy" class="w-4 h-4"></i> Copy TNOs`, 2000);
-            };
-            els.detailCopy.appendChild(copyBtn);
+      const term = searchTerm.toLowerCase();
+      const filtered = cachedDriverData.filter(d => d.id.toLowerCase().includes(term) || d.dsp.toLowerCase().includes(term));
 
-            els.detailBody.innerHTML = '';
-            driverData.packages.forEach(pkg => {
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-50 transition-colors";
-                
-                const statusBadge = `<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-200">${pkg.newStatus || '-'}</span>`;
-                
-                // Convert Excel Serial Number to Short Date
-                const formattedTime = excelSerialToShortDate(pkg.inactivityTime);
+      if (filtered.length === 0) {
+        els.driverTableBody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-400">No matching drivers/packages found.<br><span class="text-xs">Try uploading more driver files or check Status columns.</span></td></tr>';
+        return;
+      }
 
-                // --- Updated Column Order and Content ---
-                // Tracking ID (TNO), Updated Status, Address, Latest Update Time, Old Status (Base)
-                tr.innerHTML = `
-                    <td class="px-6 py-3 font-mono text-slate-700 text-xs font-medium">${pkg.tno}</td>
-                    <td class="px-6 py-3">${statusBadge}</td>
-                    <td class="px-6 py-3 text-slate-600 text-xs max-w-md truncate" title="${pkg.address}">${pkg.address}</td>
-                    <td class="px-6 py-3 text-slate-500 text-xs">${formattedTime}</td> 
-                    <td class="px-6 py-3 text-slate-400 text-xs">${pkg.baseStatus}</td>
-                `;
-                els.detailBody.appendChild(tr);
-            });
+      for (const d of filtered) {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50 transition-colors cursor-pointer group border-b border-slate-50';
+        tr.onclick = () => openDriverDetail(d);
 
-            switchView('detail');
-        }
+        const routeStr = Array.from(d.routes).sort((a, b) => a - b).join(', ') || '-';
 
-        // --- Utilities ---
-        function populateWHSFilter() {
-            els.whsSelect.innerHTML = '<option value="ALL">All Regions</option>';
-            VALID_WHS.forEach(w => {
-                const opt = document.createElement('option');
-                opt.value = w;
-                opt.textContent = w;
-                els.whsSelect.appendChild(opt);
-            });
-        }
+        tr.innerHTML = `
+          <td class="px-6 py-4 font-mono text-blue-600 font-medium group-hover:underline">${d.id}</td>
+          <td class="px-6 py-4 text-slate-600 text-xs max-w-xs truncate" title="${routeStr}">${routeStr}</td>
+          <td class="px-6 py-4 text-slate-600">${d.dsp || '-'}</td>
+          <td class="px-6 py-4 text-right font-bold text-slate-900">${d.count}</td>
+          <td class="px-6 py-4 text-right"><i data-lucide="chevron-right" class="w-5 h-5 text-slate-300 group-hover:text-blue-500 transition-colors inline-block"></i></td>
+        `;
+        els.driverTableBody.appendChild(tr);
+      }
 
-        function setupCopyButtons(tnos, containerId, isAmber = false) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = '';
+      lucide.createIcons();
+    }
 
-            if(tnos.length === 0) {
-                container.innerHTML = '<span class="text-sm text-slate-400 italic">No items to copy.</span>';
-                return;
-            }
+    function openDriverDetail(driverData) {
+      state.selectedDriverData = driverData;
+      els.detailDriverId.innerHTML = `<i data-lucide="truck" class="w-6 h-6 text-blue-600"></i> ${driverData.id}`;
 
-            const batchSize = 400;
-            const batches = Math.ceil(tnos.length / batchSize);
+      const routeStr = Array.from(driverData.routes).sort((a, b) => a - b).join(', ') || 'N/A';
+      els.detailMeta.innerHTML = `
+        <span class="flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded text-slate-600"><i data-lucide="map-pin" class="w-3 h-3"></i> ${driverData.whs}</span>
+        <span class="flex items-center gap-1 text-slate-500 font-medium">Route ID: ${routeStr}</span>
+      `;
+      els.detailVol.textContent = driverData.count;
 
-            for(let i=0; i<batches; i++) {
-                const start = i * batchSize;
-                const end = Math.min((i+1) * batchSize, tnos.length);
-                
-                const btn = document.createElement('button');
-                btn.textContent = `Copy ${start+1}-${end}`;
-                
-                if(isAmber) {
-                    btn.className = "px-3 py-1.5 bg-white border border-amber-200 text-amber-700 text-xs font-bold rounded shadow-sm hover:bg-amber-50 hover:border-amber-300 transition-colors";
-                } else {
-                    btn.className = "px-3 py-1.5 bg-white border border-slate-200 text-indigo-600 text-xs font-bold rounded shadow-sm hover:bg-indigo-50 hover:border-indigo-200 transition-colors";
-                }
-                
-                btn.onclick = () => {
-                    const text = tnos.slice(start, end).join('\n');
-                    navigator.clipboard.writeText(text).then(() => {
-                        btn.textContent = "Copied!";
-                        if(isAmber) {
-                            btn.className = "px-3 py-1.5 bg-emerald-500 text-white border border-emerald-600 text-xs font-bold rounded shadow-sm";
-                        } else {
-                            btn.className = "px-3 py-1.5 bg-emerald-500 text-white border border-emerald-600 text-xs font-bold rounded shadow-sm";
-                        }
-                        setTimeout(() => {
-                            btn.textContent = `Copy ${start+1}-${end}`;
-                            if(isAmber) {
-                                btn.className = "px-3 py-1.5 bg-white border border-amber-200 text-amber-700 text-xs font-bold rounded shadow-sm hover:bg-amber-50 hover:border-amber-300 transition-colors";
-                            } else {
-                                btn.className = "px-3 py-1.5 bg-white border border-slate-200 text-indigo-600 text-xs font-bold rounded shadow-sm hover:bg-indigo-50 hover:border-indigo-200 transition-colors";
-                            }
-                        }, 2000);
-                    });
-                };
-                container.appendChild(btn);
-            }
-        }
+      const tnos = driverData.packages.map(p => p.tno);
+      els.detailCopy.innerHTML = '';
 
-        function showLoading(show, text="Processing...") {
-            els.loadText.textContent = text;
-            els.loader.classList.toggle('visible', show);
-        }
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'text-sm text-blue-600 font-medium hover:text-blue-800 flex items-center gap-1';
+      copyBtn.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i> Copy TNOs';
+      copyBtn.onclick = () => {
+        navigator.clipboard.writeText(tnos.join('\n'));
+        copyBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i> Copied!';
+        setTimeout(() => copyBtn.innerHTML = '<i data-lucide="copy" class="w-4 h-4"></i> Copy TNOs', 2000);
+      };
+      els.detailCopy.appendChild(copyBtn);
 
-        function resetAnalysis() {
-            location.reload();
-        }
-    </script>
+      els.detailBody.innerHTML = '';
+      for (const pkg of driverData.packages) {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50 transition-colors';
+
+        const statusBadge = `<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-200">${pkg.newStatus || '-'}</span>`;
+        const formattedTime = excelSerialToShortDate(pkg.inactivityTime);
+
+        tr.innerHTML = `
+          <td class="px-6 py-3 font-mono text-slate-700 text-xs font-medium">${pkg.tno}</td>
+          <td class="px-6 py-3">${statusBadge}</td>
+          <td class="px-6 py-3 text-slate-600 text-xs max-w-md truncate" title="${pkg.address}">${pkg.address}</td>
+          <td class="px-6 py-3 text-slate-500 text-xs">${formattedTime}</td>
+          <td class="px-6 py-3 text-slate-400 text-xs">${pkg.baseStatus}</td>
+        `;
+        els.detailBody.appendChild(tr);
+      }
+
+      switchView('detail');
+    }
+
+    function populateWHSFilter() {
+      els.whsSelect.innerHTML = '<option value="ALL">All Regions</option>';
+      for (const w of VALID_WHS) {
+        const opt = document.createElement('option');
+        opt.value = w;
+        opt.textContent = w;
+        els.whsSelect.appendChild(opt);
+      }
+    }
+
+    function setupCopyButtons(tnos, containerId, isAmber = false) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+
+      if (tnos.length === 0) {
+        container.innerHTML = '<span class="text-sm text-slate-400 italic">No items to copy.</span>';
+        return;
+      }
+
+      const batchSize = 400;
+      const batches = Math.ceil(tnos.length / batchSize);
+
+      for (let i = 0; i < batches; i++) {
+        const start = i * batchSize;
+        const end = Math.min((i + 1) * batchSize, tnos.length);
+
+        const btn = document.createElement('button');
+        btn.textContent = `Copy ${start + 1}-${end}`;
+
+        btn.className = isAmber
+          ? 'px-3 py-1.5 bg-white border border-amber-200 text-amber-700 text-xs font-bold rounded shadow-sm hover:bg-amber-50 hover:border-amber-300 transition-colors'
+          : 'px-3 py-1.5 bg-white border border-slate-200 text-indigo-600 text-xs font-bold rounded shadow-sm hover:bg-indigo-50 hover:border-indigo-200 transition-colors';
+
+        btn.onclick = () => {
+          const text = tnos.slice(start, end).join('\n');
+          navigator.clipboard.writeText(text).then(() => {
+            btn.textContent = 'Copied!';
+            btn.className = 'px-3 py-1.5 bg-emerald-500 text-white border border-emerald-600 text-xs font-bold rounded shadow-sm';
+            setTimeout(() => {
+              btn.textContent = `Copy ${start + 1}-${end}`;
+              btn.className = isAmber
+                ? 'px-3 py-1.5 bg-white border border-amber-200 text-amber-700 text-xs font-bold rounded shadow-sm hover:bg-amber-50 hover:border-amber-300 transition-colors'
+                : 'px-3 py-1.5 bg-white border border-slate-200 text-indigo-600 text-xs font-bold rounded shadow-sm hover:bg-indigo-50 hover:border-indigo-200 transition-colors';
+            }, 2000);
+          });
+        };
+
+        container.appendChild(btn);
+      }
+    }
+
+    function showLoading(show, text = 'Processing...') {
+      els.loadText.textContent = text;
+      els.loader.classList.toggle('visible', show);
+    }
+
+    function resetAnalysis() { location.reload(); }
+  </script>
 </body>
 </html>
