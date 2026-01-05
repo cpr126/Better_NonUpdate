@@ -239,7 +239,7 @@
             </label>
             <label class="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
               <input type="checkbox" id="toggle-exclude-99x" class="w-4 h-4 rounded text-rose-500 focus:ring-rose-500 border-slate-300">
-              Exclude 992/998
+              Exclude 992/995/998
             </label>
             <label class="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">
               <input type="checkbox" id="toggle-exclude-exceptions" class="w-4 h-4 rounded text-rose-500 focus:ring-rose-500 border-slate-300">
@@ -991,7 +991,7 @@
 
           if (exclusionPass && state.exclude99XRoutes) {
             const driverIdString = String(row.driverId);
-            if (driverIdString.endsWith('992') || driverIdString.endsWith('998')) exclusionPass = false;
+            if (driverIdString.endsWith('992') || (driverIdString.endsWith('995') || driverIdString.endsWith('998')) exclusionPass = false;
           }
 
           if (exclusionPass && state.excludeMainScan) {
